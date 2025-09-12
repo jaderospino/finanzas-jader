@@ -22,6 +22,7 @@ import {
   BarChart,
   Bar,
 } from "recharts";
+import { checkSupabase, loadSettings, saveSettings } from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
 
@@ -123,7 +124,6 @@ const PIE_COLORS = [
 
 /* ============================== Hooks de UI ============================== */
 
-/** Conteo animado sin dependencias (requestAnimationFrame) */
 function useCountUp(value: number, duration = 700) {
   const [display, setDisplay] = useState(value);
   const fromRef = useRef(value);
@@ -150,7 +150,6 @@ function useCountUp(value: number, duration = 700) {
   return display;
 }
 
-/** Ripple sutil: añade clase y coord x/y a CSS var --x/--y */
 function useRipple() {
   const ref = useRef<HTMLButtonElement | null>(null);
   const onMouseDown = (e: MouseEvent<HTMLButtonElement>) => {
@@ -162,7 +161,7 @@ function useRipple() {
     el.style.setProperty("--x", `${x}px`);
     el.style.setProperty("--y", `${y}px`);
     el.classList.remove("has-ripple");
-    el.offsetHeight; // reflow
+    void el.offsetHeight; // reflow
     el.classList.add("has-ripple");
   };
   return { ref, onMouseDown };
@@ -186,9 +185,24 @@ function startDow(ym: string) {
   const [y, m] = ym.split("-").map(Number);
   return new Date(y, m - 1, 1).getDay();
 }
+
 /* ==================================== App ================================== */
 
 export default function App() {
+  // Nube
+  const [cloudBusy, setCloudBusy] = useState(false);
+  const [cloudMsg, setCloudMsg] = useState<string | null>(null);
+
+  // Modal de etiquetas
+  const [showTags, setShowTags] = useState(false);
+
+  // Ping a Supabase (solo prueba de conexión)
+  useEffect(() => {
+    checkSupabase().then((err) => {
+      console.log("Supabase ping:", err?.message || "OK");
+    });
+  }, []);
+
   /* Tema */
   const [dark, setDark] = useState<boolean>(() => {
     const saved = localStorage.getItem(STORAGE.THEME);
@@ -201,6 +215,32 @@ export default function App() {
     root.classList.toggle("dark", dark);
     localStorage.setItem(STORAGE.THEME, dark ? "dark" : "light");
   }, [dark]);
+
+  /* Cargar ajustes (tags + budget) desde Supabase al montar */
+  useEffect(() => {
+    let mounted = true;
+    (async () => {
+      try {
+        setCloudBusy(true);
+        const s = await loadSettings(); // { tags, budget }
+        if (!mounted) return;
+
+        if (s?.tags && Object.keys(s.tags).length > 0) setTags(s.tags);
+        if (s?.budget) setBudget(s.budget);
+
+        setCloudMsg("Ajustes cargados desde la nube");
+        setTimeout(() => setCloudMsg(null), 2000);
+      } catch {
+        setCloudMsg("No se pudo cargar ajustes (se usará local)");
+        setTimeout(() => setCloudMsg(null), 2500);
+      } finally {
+        setCloudBusy(false);
+      }
+    })();
+    return () => {
+      mounted = false;
+    };
+  }, []);
 
   /* Estado base */
   const [month, setMonth] = useState<string>(() => {
@@ -234,6 +274,7 @@ export default function App() {
     }
   });
 
+  // Persistencia local
   useEffect(() => localStorage.setItem(STORAGE.TX, JSON.stringify(tx)), [tx]);
   useEffect(
     () => localStorage.setItem(STORAGE.TAGS, JSON.stringify(tags)),
@@ -552,10 +593,6 @@ export default function App() {
     });
   };
 
-  /* =============================== Modal Tags =============================== */
-
-  const [showTags, setShowTags] = useState(false);
-
   /* ======= Meses con datos ======= */
 
   const monthsWithData = useMemo(() => {
@@ -631,10 +668,10 @@ export default function App() {
 
   return (
     <div className="w-full min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100">
-      {/* estilos globales para animaciones */}
+      {/* estilos globales */}
       <DesignStyles />
 
-      {/* Header — z-50 para quedar siempre arriba */}
+      {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/70 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
         <div className="w-full px-3 sm:px-4 py-2 sm:py-3 flex flex-wrap items-center gap-2 sm:gap-3 justify-between">
           <div className="flex items-center gap-3">
@@ -660,6 +697,26 @@ export default function App() {
               }}
             >
               ⬇️ Exportar
+            </HeaderBtn>
+
+            <HeaderBtn
+              onClick={async () => {
+                try {
+                  setCloudBusy(true);
+                  await saveSettings({ tags, budget });
+                  setCloudMsg("Ajustes guardados en la nube");
+                  setTimeout(() => setCloudMsg(null), 2000);
+                } catch (err) {
+                  setCloudMsg("Error al guardar ajustes");
+                  setTimeout(() => setCloudMsg(null), 2500);
+                  console.error(err);
+                } finally {
+                  setCloudBusy(false);
+                }
+              }}
+              title="Guardar etiquetas y presupuesto en Supabase"
+            >
+              {cloudBusy ? "⏳ Guardando…" : "☁️ Guardar ajustes"}
             </HeaderBtn>
 
             <label className="relative overflow-hidden ripple px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer transition active:scale-[0.98]">
@@ -724,7 +781,6 @@ export default function App() {
           <TabButton active={tab === "calendario"} onClick={() => setTab("calendario")} txt="Calendario" />
           <TabButton active={tab === "tabla"} onClick={() => setTab("tabla")} txt="Tabla" />
 
-          {/* Mes (solo meses con datos) */}
           <div className="ms-auto flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
             <label className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">Mes</label>
             <select
@@ -969,8 +1025,7 @@ export default function App() {
                   </ResponsiveContainer>
                 </div>
                 <div className="text-[11px] sm:text-xs text-slate-500 mt-2">
-                  Cambia la vista (Categoría / Subcategoría / Cuenta), el alcance (Mes / Todo el
-                  período) y el Top N para explorar tus gastos.
+                  Cambia la vista (Categoría / Subcategoría / Cuenta) y el alcance (Mes / Rango).
                 </div>
               </div>
             </div>
@@ -1261,6 +1316,13 @@ export default function App() {
         />
       )}
 
+      {/* Toast de nube */}
+      {cloudMsg && (
+        <div className="fixed bottom-4 right-4 px-3 py-2 rounded-md bg-slate-900 text-white text-sm shadow">
+          {cloudMsg}
+        </div>
+      )}
+
       {/* Navegación móvil */}
       <nav className="fixed z-40 bottom-3 left-1/2 -translate-x-1/2 sm:hidden">
         <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-700 rounded-full px-2 py-1 flex gap-1">
@@ -1510,7 +1572,6 @@ function Select<T extends string>({
   );
 }
 
-/* MoneyInput: sin formateo durante escritura; formatea en blur */
 function MoneyInput({
   value,
   onChange,
@@ -1919,11 +1980,9 @@ function Badge({
 function DesignStyles() {
   return (
     <style>{`
-    /* Fade up genérico */
     .fade-up { animation: fadeUp .38s ease both; }
     @keyframes fadeUp { from { opacity: 0; transform: translateY(6px) } to { opacity: 1; transform: translateY(0) } }
 
-    /* Gradiente animado para héroes */
     .grad-animate {
       background: linear-gradient(135deg, rgba(16,185,129,.16), rgba(59,130,246,.14), rgba(168,85,247,.16));
       background-size: 200% 200%;
@@ -1936,7 +1995,6 @@ function DesignStyles() {
       100% { background-position: 0% 50% }
     }
 
-    /* Ripple sin libs */
     .ripple { overflow: hidden; }
     .ripple.has-ripple::after,
     .ripple:active::after {
@@ -1951,12 +2009,7 @@ function DesignStyles() {
       pointer-events: none;
       aspect-ratio: 1;
     }
-    @keyframes ripple {
-      from { width: 0; opacity: .55; }
-      to   { width: 420px; opacity: 0; }
-    }
 
-    /* Mini delay por celdas calendario */
     .calendar-cell { will-change: transform, opacity; }
   `}</style>
   );
