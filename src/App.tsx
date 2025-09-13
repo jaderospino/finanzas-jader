@@ -22,7 +22,16 @@ import {
   BarChart,
   Bar,
 } from "recharts";
-import { checkSupabase, loadSettings, saveSettings } from "./lib/supabase";
+import {
+  checkSupabase,
+  loadSettings,
+  saveSettings,
+  signInWithEmail,
+  getUser,
+  pullTx,
+  pushTxBulk,
+  deleteTx as deleteTxCloud,
+} from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
 
@@ -193,6 +202,9 @@ export default function App() {
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudMsg, setCloudMsg] = useState<string | null>(null);
 
+  // Usuario (email visible si hay sesión)
+  const [userEmail, setUserEmail] = useState<string | null>(null);
+
   // Modal de etiquetas
   const [showTags, setShowTags] = useState(false);
 
@@ -201,6 +213,11 @@ export default function App() {
     checkSupabase().then((err) => {
       console.log("Supabase ping:", err?.message || "OK");
     });
+  }, []);
+
+  // Obtener usuario al cargar
+  useEffect(() => {
+    getUser().then((u) => setUserEmail(u?.email ?? null));
   }, []);
 
   /* Tema */
@@ -221,6 +238,8 @@ export default function App() {
     let mounted = true;
     (async () => {
       try {
+        const u = await getUser();
+        if (!u) return; // sin sesión, no intenta nube
         setCloudBusy(true);
         const s = await loadSettings(); // { tags, budget }
         if (!mounted) return;
@@ -240,6 +259,38 @@ export default function App() {
     return () => {
       mounted = false;
     };
+  }, []);
+
+  /* Cargar movimientos (tx) desde la nube al montar si hay sesión */
+  useEffect(() => {
+    (async () => {
+      try {
+        const u = await getUser();
+        if (!u) return;
+        const cloudTx = await pullTx();
+        if (Array.isArray(cloudTx) && cloudTx.length) {
+          const mapped: Tx[] = cloudTx.map((r: any) => ({
+            id: r.id,
+            type: r.type,
+            account: r.account as Account,
+            toAccount: (r.to_account as Account) || "",
+            date: r.date,
+            time: r.time,
+            amount: Number(r.amount),
+            category: r.category,
+            subcategory: r.subcategory,
+            note: r.note || "",
+          }));
+          setTx(mapped);
+          setCloudMsg("Movimientos cargados desde la nube");
+          setTimeout(() => setCloudMsg(null), 1800);
+        }
+      } catch (e) {
+        console.error(e);
+        setCloudMsg("No se pudieron cargar movimientos");
+        setTimeout(() => setCloudMsg(null), 2000);
+      }
+    })();
   }, []);
 
   /* Estado base */
@@ -574,23 +625,53 @@ export default function App() {
       return ns;
     });
   };
-  const deleteSelected = () => {
+
+  const deleteSelected = async () => {
     if (selectedIds.size === 0) return;
+    const ids = Array.from(selectedIds);
     setTx((t) => t.filter((r) => !selectedIds.has(r.id)));
     setSelectedIds(new Set());
+    if (userEmail) {
+      try {
+        await deleteTxCloud(ids);
+      } catch (e) {
+        console.error(e);
+        setCloudMsg("No se pudo borrar en la nube");
+        setTimeout(() => setCloudMsg(null), 1800);
+      }
+    }
   };
-  const deleteAll = () => {
+  const deleteAll = async () => {
     if (!confirm("¿Eliminar todos los movimientos?")) return;
+    const ids = tx.map((r) => r.id);
     setTx([]);
     setSelectedIds(new Set());
+    if (userEmail && ids.length) {
+      try {
+        await deleteTxCloud(ids);
+      } catch (e) {
+        console.error(e);
+        setCloudMsg("No se pudo borrar en la nube");
+        setTimeout(() => setCloudMsg(null), 1800);
+      }
+    }
   };
-  const deleteOne = (id: string) => {
+  const deleteOne = async (id: string) => {
     setTx((t) => t.filter((r) => r.id !== id));
     setSelectedIds((s) => {
       const ns = new Set(s);
       ns.delete(id);
       return ns;
     });
+    if (userEmail) {
+      try {
+        await deleteTxCloud([id]);
+      } catch (e) {
+        console.error(e);
+        setCloudMsg("No se pudo borrar en la nube");
+        setTimeout(() => setCloudMsg(null), 1800);
+      }
+    }
   };
 
   /* ======= Meses con datos ======= */
@@ -699,6 +780,7 @@ export default function App() {
               ⬇️ Exportar
             </HeaderBtn>
 
+            {/* Guardar SOLO ajustes en la nube */}
             <HeaderBtn
               onClick={async () => {
                 try {
@@ -719,6 +801,59 @@ export default function App() {
               {cloudBusy ? "⏳ Guardando…" : "☁️ Guardar ajustes"}
             </HeaderBtn>
 
+            {/* Sincronizar todo: settings + tx (push y pull) */}
+            <HeaderBtn
+              onClick={async () => {
+                try {
+                  setCloudBusy(true);
+                  // 1) Ajustes
+                  await saveSettings({ tags, budget });
+                  // 2) Movimientos -> push
+                  await pushTxBulk(
+                    tx.map((t) => ({
+                      id: t.id,
+                      type: t.type,
+                      account: t.account,
+                      to_account: t.toAccount || null,
+                      date: t.date,
+                      time: t.time,
+                      amount: t.amount,
+                      category: t.category,
+                      subcategory: t.subcategory,
+                      note: t.note || null,
+                    }))
+                  );
+                  // 3) Pull para confirmar
+                  const cloudTx = await pullTx();
+                  const mapped: Tx[] = (cloudTx || []).map((r: any) => ({
+                    id: r.id,
+                    type: r.type,
+                    account: r.account as Account,
+                    toAccount: (r.to_account as Account) || "",
+                    date: r.date,
+                    time: r.time,
+                    amount: Number(r.amount),
+                    category: r.category,
+                    subcategory: r.subcategory,
+                    note: r.note || "",
+                  }));
+                  if (mapped.length) setTx(mapped);
+                  setCloudMsg("Sincronizado ✅");
+                  setTimeout(() => setCloudMsg(null), 1600);
+                } catch (e) {
+                  console.error(e);
+                  setCloudMsg("Error al sincronizar");
+                  setTimeout(() => setCloudMsg(null), 2200);
+                } finally {
+                  setCloudBusy(false);
+                }
+              }}
+              title="Sincroniza ajustes y movimientos con la nube"
+            >
+              ☁️ Sincronizar todo
+            </HeaderBtn>
+
+            {/* Importar desde archivo */}
             <label className="relative overflow-hidden ripple px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer transition active:scale-[0.98]">
               ⬆️ Importar
               <input
@@ -742,12 +877,40 @@ export default function App() {
               />
             </label>
 
+            {/* Modo oscuro */}
             <HeaderBtn
               onClick={() => setDark((d) => !d)}
               title="Modo oscuro / claro"
             >
               {dark ? "☀️ Claro" : "🌙 Oscuro"}
             </HeaderBtn>
+
+            {/* Sesión */}
+            {userEmail ? (
+              <span className="text-xs sm:text-sm px-2 py-1 rounded border border-slate-300 dark:border-slate-700">
+                {userEmail}
+              </span>
+            ) : (
+              <HeaderBtn
+                onClick={async () => {
+                  const email = prompt(
+                    "Escribe tu correo para recibir el enlace de inicio de sesión:"
+                  );
+                  if (!email) return;
+                  try {
+                    await signInWithEmail(email);
+                    alert(
+                      "Te envié un enlace a tu correo. Ábrelo y vuelve a esta página."
+                    );
+                  } catch (e: any) {
+                    alert("No se pudo enviar el enlace: " + (e?.message || e));
+                  }
+                }}
+                title="Iniciar sesión por Magic Link"
+              >
+                ✉️ Iniciar sesión
+              </HeaderBtn>
+            )}
           </div>
         </div>
       </header>
@@ -1335,7 +1498,7 @@ export default function App() {
       </nav>
 
       <footer className="px-3 sm:px-4 py-4 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
-        Hecho para Jader — Datos guardados en tu navegador (localStorage)
+        Hecho para Jader — Datos guardados en tu navegador (localStorage) y sincronizables con Supabase
       </footer>
     </div>
   );

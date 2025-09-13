@@ -1,165 +1,113 @@
-// src/lib/supabase.ts
-import { createClient, type PostgrestError } from "@supabase/supabase-js";
+// ./lib/supabase.ts
+import { createClient, SupabaseClient } from "@supabase/supabase-js";
 
-/* ======================== Inicialización del cliente ======================== */
+const url = import.meta.env.VITE_SUPABASE_URL!;
+const key = import.meta.env.VITE_SUPABASE_ANON_KEY!;
+export const supabase: SupabaseClient = createClient(url, key, {
+  auth: { persistSession: true, autoRefreshToken: true },
+});
 
-const SUPABASE_URL = import.meta.env.VITE_SUPABASE_URL as string;
-const SUPABASE_ANON_KEY = import.meta.env.VITE_SUPABASE_ANON_KEY as string;
-
-if (!SUPABASE_URL || !SUPABASE_ANON_KEY) {
-  console.warn(
-    "[supabase] Faltan variables de entorno VITE_SUPABASE_URL / VITE_SUPABASE_ANON_KEY"
-  );
+export async function checkSupabase() {
+  try {
+    const { data, error } = await supabase.from("settings").select("updated_at").limit(1);
+    return error ?? null;
+  } catch (e:any) { return e; }
 }
 
-export const supabase = createClient(SUPABASE_URL, SUPABASE_ANON_KEY);
+/* --------------------------- AUTH (Magic Link) --------------------------- */
+export async function getSession() {
+  const { data } = await supabase.auth.getSession();
+  return data.session ?? null;
+}
+export async function getUser() {
+  const { data } = await supabase.auth.getUser();
+  return data.user ?? null;
+}
+export async function signInWithEmail(email: string) {
+  const { error } = await supabase.auth.signInWithOtp({ email, options: { emailRedirectTo: window.location.href } });
+  if (error) throw error;
+}
+export async function signOut() {
+  await supabase.auth.signOut();
+}
 
-/* =============================== Tipos de DB =============================== */
+/* ------------------------- SETTINGS (tags + budget) ---------------------- */
+export async function loadSettings() {
+  const user = await getUser();
+  if (!user) return null;
+  const { data, error } = await supabase
+    .from("settings")
+    .select("tags, budget")
+    .eq("user_id", user.id)
+    .single();
+  if (error && error.code !== "PGRST116") throw error; // no rows
+  return data ?? null;
+}
 
-export type TxType = "Ingreso" | "Gasto" | "Transferencia";
-export type Account =
-  | "Banco Davivienda"
-  | "Banco de Bogotá"
-  | "Nequi"
-  | "Rappi"
-  | "Efectivo"
-  | "TC Rappi";
+export async function saveSettings(payload: { tags: any; budget: any }) {
+  const user = await getUser();
+  if (!user) throw new Error("No hay sesión. Inicia sesión primero.");
+  const { error } = await supabase.from("settings").upsert({
+    user_id: user.id,
+    tags: payload.tags,
+    budget: payload.budget,
+  });
+  if (error) throw error;
+}
 
-export type MovementRow = {
-  id: string; // uuid
-  user_id?: string | null;
-  type: TxType;
-  account: Account;
-  to_account?: Account | "" | null;
+/* ------------------------------ TRANSACCIONES --------------------------- */
+import type { Database } from "./types"; // opcional si usas types
+
+export type TxRow = {
+  id: string;
+  type: "Ingreso"|"Gasto"|"Transferencia";
+  account: string;
+  to_account?: string | null;
   date: string; // YYYY-MM-DD
   time: string; // HH:mm:ss
-  amount: number; // COP
+  amount: number;
   category: string;
   subcategory: string;
   note?: string | null;
 };
 
-export type UserSettings = {
-  user_id?: string;
-  tags: Record<string, string[]>;
-  budget: { basicos: number; deseos: number; ahorro: number };
-};
-
-/* =============================== Conexión ping ============================== */
-/**
- * Intenta tocar una tabla real con HEAD/limit 0 para verificar credenciales y conectividad
- * sin traer datos. Devuelve `null` si está OK, o el error si algo falla.
- */
-export async function checkSupabase(): Promise<PostgrestError | null> {
-  // user_settings tiene RLS; si no hay fila para el usuario autenticado
-  // .maybeSingle() devolverá null sin lanzar error PGRST116.
-  const { error } = await supabase
-    .from("user_settings")
-    .select("user_id", { head: true, count: "exact" })
-    .limit(0);
-  return error ?? null;
+export async function pullTx(): Promise<TxRow[]> {
+  const user = await getUser();
+  if (!user) return [];
+  const { data, error } = await supabase
+    .from("transactions")
+    .select("*")
+    .eq("user_id", user.id)
+    .order("date", { ascending: false })
+    .order("time", { ascending: false });
+  if (error) throw error;
+  return data as any;
 }
 
-/* ============================ Movements helpers ============================ */
-/**
- * UPSERT de movimientos. Si `id` existe -> update, si no -> insert.
- * Requiere políticas RLS: movements_ins_own / movements_upd_own.
- */
-export async function upsertMovements(
-  rows: MovementRow[]
-): Promise<MovementRow[]> {
-  // Sanitiza: aseguramos nulls en campos opcionales para evitar problemas de tipos
+export async function pushTxBulk(rows: TxRow[]) {
+  const user = await getUser();
+  if (!user) throw new Error("No hay sesión. Inicia sesión primero.");
+  if (!rows.length) return;
   const payload = rows.map((r) => ({
-    ...r,
+    id: r.id,
+    user_id: user.id,
+    type: r.type,
+    account: r.account,
     to_account: r.to_account ?? null,
+    date: r.date,
+    time: r.time,
+    amount: r.amount,
+    category: r.category,
+    subcategory: r.subcategory,
     note: r.note ?? null,
   }));
-
-  const { data, error } = await supabase
-    .from("movements")
-    .upsert(payload, { onConflict: "id" })
-    .select("*");
-
-  if (error) throw error;
-  return (data || []) as MovementRow[];
-}
-
-/**
- * Elimina movimientos por ids (del usuario actual).
- */
-export async function deleteMovements(ids: string[]): Promise<void> {
-  const { error } = await supabase.from("movements").delete().in("id", ids);
+  const { error } = await supabase.from("transactions").upsert(payload, { onConflict: "id" });
   if (error) throw error;
 }
 
-/* ============================== User Settings ============================== */
-/**
- * Carga settings (tags + budget) del usuario.
- * Si no existe el registro, lo crea vacío y devuelve defaults.
- *
- * RLS: settings_select_own (select) y settings_upsert_own (insert/update).
- */
-export async function loadSettings(): Promise<UserSettings> {
-  const { data, error } = await supabase
-    .from("user_settings")
-    .select("*")
-    .maybeSingle(); // no lanza PGRST116 si no hay filas
-
-  // Si hubo error distinto a "no rows", propagarlo
-  if (error && error.code !== "PGRST116") throw error;
-
-  if (!data) {
-    // Crea registro vacío para el usuario actual
-    const { data: inserted, error: err2 } = await supabase
-      .from("user_settings")
-      .insert([{ tags: {}, budget: { basicos: 0, deseos: 0, ahorro: 0 } }])
-      .select("*")
-      .single();
-
-    if (err2) throw err2;
-
-    return {
-      user_id: inserted.user_id,
-      tags: inserted.tags || {},
-      budget: inserted.budget || { basicos: 0, deseos: 0, ahorro: 0 },
-    } as UserSettings;
-  }
-
-  // Retorna lo existente normalizado
-  return {
-    user_id: data.user_id,
-    tags: data.tags || {},
-    budget: data.budget || { basicos: 0, deseos: 0, ahorro: 0 },
-  } as UserSettings;
-}
-
-/**
- * Guarda settings (tags + budget) del usuario actual.
- */
-export async function saveSettings(settings: UserSettings): Promise<void> {
-  const { error } = await supabase.from("user_settings").upsert([
-    {
-      tags: settings.tags ?? {},
-      budget: settings.budget ?? { basicos: 0, deseos: 0, ahorro: 0 },
-    },
-  ]);
+export async function deleteTx(ids: string[]) {
+  const user = await getUser();
+  if (!user || !ids.length) return;
+  const { error } = await supabase.from("transactions").delete().in("id", ids).eq("user_id", user.id);
   if (error) throw error;
-}
-
-/* ============================== Utilidad común ============================= */
-/**
- * Pequeño helper para envolver llamadas con manejo de error sencillo.
- * Útil si quieres capturar PostgrestError y convertir a mensajes UI.
- */
-export async function safeCall<T>(fn: () => Promise<T>): Promise<{
-  ok: true; data: T;
-} | { ok: false; error: PostgrestError }> {
-  try {
-    const data = await fn();
-    // @ts-expect-error narrow
-    if (data?.error) return { ok: false, error: data.error };
-    return { ok: true, data };
-  } catch (e: any) {
-    return { ok: false, error: e as PostgrestError };
-  }
 }
