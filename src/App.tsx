@@ -29,7 +29,7 @@ import {
   signInWithEmail,
   getUser,
   pullTx,
-  pushTxBulk,
+  upsertTxBulk as pushTxBulk,
   deleteTx as deleteTxCloud,
 } from "./lib/supabase";
 
@@ -39,8 +39,8 @@ const fmtCOP = (v: number) =>
   (isFinite(v) ? v : 0).toLocaleString("es-CO", {
     style: "currency",
     currency: "COP",
-    minimumFractionDigits: 2,
-    maximumFractionDigits: 2,
+    minimumFractionDigits: 0,
+    maximumFractionDigits: 0,
   });
 
 function normalizeMoneyInput(s: string) {
@@ -205,8 +205,9 @@ export default function App() {
   // Usuario (email visible si hay sesión)
   const [userEmail, setUserEmail] = useState<string | null>(null);
 
-  // Modal de etiquetas
+  // Modales
   const [showTags, setShowTags] = useState(false);
+  const [showSettings, setShowSettings] = useState(false); // <-- NUEVO ESTADO PARA MODAL DE CONFIGURACIÓN
 
   // Ping a Supabase (solo prueba de conexión)
   useEffect(() => {
@@ -761,157 +762,18 @@ export default function App() {
             </div>
             <h1 className="text-base sm:text-lg font-semibold">Finanzas — Jader</h1>
           </div>
-
+          
+          {/* ----- INICIO CAMBIO HEADER ----- */}
           <div className="flex flex-wrap items-center gap-2">
-            <HeaderBtn onClick={() => setShowTags(true)}>🏷️ Etiquetas</HeaderBtn>
-
-            <HeaderBtn
-              onClick={() => {
-                const blob = new Blob(
-                  [JSON.stringify({ tx, tags, budget }, null, 2)],
-                  { type: "application/json" }
-                );
-                const a = document.createElement("a");
-                a.href = URL.createObjectURL(blob);
-                a.download = "finanzas_jader.json";
-                a.click();
-              }}
-            >
-              ⬇️ Exportar
-            </HeaderBtn>
-
-            {/* Guardar SOLO ajustes en la nube */}
-            <HeaderBtn
-              onClick={async () => {
-                try {
-                  setCloudBusy(true);
-                  await saveSettings({ tags, budget });
-                  setCloudMsg("Ajustes guardados en la nube");
-                  setTimeout(() => setCloudMsg(null), 2000);
-                } catch (err) {
-                  setCloudMsg("Error al guardar ajustes");
-                  setTimeout(() => setCloudMsg(null), 2500);
-                  console.error(err);
-                } finally {
-                  setCloudBusy(false);
-                }
-              }}
-              title="Guardar etiquetas y presupuesto en Supabase"
-            >
-              {cloudBusy ? "⏳ Guardando…" : "☁️ Guardar ajustes"}
-            </HeaderBtn>
-
-            {/* Sincronizar todo: settings + tx (push y pull) */}
-            <HeaderBtn
-              onClick={async () => {
-                try {
-                  setCloudBusy(true);
-                  // 1) Ajustes
-                  await saveSettings({ tags, budget });
-                  // 2) Movimientos -> push
-                  await pushTxBulk(
-                    tx.map((t) => ({
-                      id: t.id,
-                      type: t.type,
-                      account: t.account,
-                      to_account: t.toAccount || null,
-                      date: t.date,
-                      time: t.time,
-                      amount: t.amount,
-                      category: t.category,
-                      subcategory: t.subcategory,
-                      note: t.note || null,
-                    }))
-                  );
-                  // 3) Pull para confirmar
-                  const cloudTx = await pullTx();
-                  const mapped: Tx[] = (cloudTx || []).map((r: any) => ({
-                    id: r.id,
-                    type: r.type,
-                    account: r.account as Account,
-                    toAccount: (r.to_account as Account) || "",
-                    date: r.date,
-                    time: r.time,
-                    amount: Number(r.amount),
-                    category: r.category,
-                    subcategory: r.subcategory,
-                    note: r.note || "",
-                  }));
-                  if (mapped.length) setTx(mapped);
-                  setCloudMsg("Sincronizado ✅");
-                  setTimeout(() => setCloudMsg(null), 1600);
-                } catch (e) {
-                  console.error(e);
-                  setCloudMsg("Error al sincronizar");
-                  setTimeout(() => setCloudMsg(null), 2200);
-                } finally {
-                  setCloudBusy(false);
-                }
-              }}
-              title="Sincroniza ajustes y movimientos con la nube"
-            >
-              ☁️ Sincronizar todo
-            </HeaderBtn>
-
-            {/* Importar desde archivo */}
-            <label className="relative overflow-hidden ripple px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer transition active:scale-[0.98]">
-              ⬆️ Importar
-              <input
-                type="file"
-                accept="application/json"
-                hidden
-                onChange={(e) => {
-                  const f = e.target.files?.[0];
-                  if (!f) return;
-                  f.text().then((txt) => {
-                    try {
-                      const data = JSON.parse(txt);
-                      if (Array.isArray(data.tx)) setTx(data.tx);
-                      if (data.tags) setTags(data.tags);
-                      if (data.budget) setBudget(data.budget);
-                    } catch {
-                      alert("Archivo inválido");
-                    }
-                  });
-                }}
-              />
-            </label>
-
-            {/* Modo oscuro */}
-            <HeaderBtn
-              onClick={() => setDark((d) => !d)}
-              title="Modo oscuro / claro"
-            >
-              {dark ? "☀️ Claro" : "🌙 Oscuro"}
-            </HeaderBtn>
-
-            {/* Sesión */}
-            {userEmail ? (
+            {userEmail && (
               <span className="text-xs sm:text-sm px-2 py-1 rounded border border-slate-300 dark:border-slate-700">
                 {userEmail}
               </span>
-            ) : (
-              <HeaderBtn
-                onClick={async () => {
-                  const email = prompt(
-                    "Escribe tu correo para recibir el enlace de inicio de sesión:"
-                  );
-                  if (!email) return;
-                  try {
-                    await signInWithEmail(email);
-                    alert(
-                      "Te envié un enlace a tu correo. Ábrelo y vuelve a esta página."
-                    );
-                  } catch (e: any) {
-                    alert("No se pudo enviar el enlace: " + (e?.message || e));
-                  }
-                }}
-                title="Iniciar sesión por Magic Link"
-              >
-                ✉️ Iniciar sesión
-              </HeaderBtn>
             )}
+            <HeaderBtn onClick={() => setShowSettings(true)}>⚙️ Configuración</HeaderBtn>
           </div>
+          {/* ----- FIN CAMBIO HEADER ----- */}
+
         </div>
       </header>
 
@@ -937,7 +799,9 @@ export default function App() {
         </section>
 
         {/* Tabs */}
-        <section className="flex flex-wrap items-center gap-2 fade-up" style={{ animationDelay: "80ms" }}>
+        {/* ----- INICIO CAMBIO TABS (OCULTAR EN MÓVIL) ----- */}
+        <section className="hidden sm:flex flex-wrap items-center gap-2 fade-up" style={{ animationDelay: "80ms" }}>
+        {/* ----- FIN CAMBIO TABS ----- */}
           <TabButton active={tab === "capturar"} onClick={() => setTab("capturar")} txt="Capturar" />
           <TabButton active={tab === "transferir"} onClick={() => setTab("transferir")} txt="Transferir" />
           <TabButton active={tab === "presupuesto"} onClick={() => setTab("presupuesto")} txt="Presupuesto" />
@@ -1327,32 +1191,40 @@ export default function App() {
                 const day = Number(cell.date.slice(-2));
                 const clickable = (cell.items || []).length > 0;
                 return (
+                  // ----- INICIO CAMBIO CALENDARIO -----
                   <button
                     key={cell.date}
                     onClick={() =>
                       clickable && setDayModal({ date: cell.date!, items: cell.items || [] })
                     }
-                    className={`min-h-[110px] rounded-lg border p-2 flex flex-col text-left transition
-                      fade-up calendar-cell
+                    className={`min-h-[110px] rounded-lg border p-1.5 flex flex-col text-left transition
+                      fade-up calendar-cell overflow-hidden 
                       bg-white dark:bg-slate-900
                       ${clickable
                         ? "border-slate-200 dark:border-slate-700 hover:shadow-lg hover:-translate-y-0.5 hover:bg-slate-50 dark:hover:bg-slate-800"
                         : "border-slate-200/60 dark:border-slate-700/60 opacity-80 cursor-default"}`}
                     style={{ animationDelay: `${(idx % 14) * 20}ms` }}
                   >
-                    <div className="text-xs text-slate-500 mb-1">{day}</div>
-                    <div className="mt-auto space-y-1 text-xs">
-                      <div className="text-emerald-600">
-                        {cell.ingresos ? `+ ${fmtCOP(cell.ingresos)}` : ""}
-                      </div>
-                      <div className="text-rose-600">
-                        {cell.gastos ? `- ${fmtCOP(cell.gastos)}` : ""}
-                      </div>
-                      {cell.transfer ? (
-                        <div className="text-blue-600">⇄ {fmtCOP(cell.transfer)}</div>
-                      ) : null}
+                    <div className="text-xs text-slate-500">{day}</div>
+                    <div className="mt-auto space-y-0.5 text-[10px] leading-tight">
+                      {cell.ingresos > 0 && (
+                        <div className="text-emerald-600 truncate">
+                          + {fmtCOP(cell.ingresos)}
+                        </div>
+                      )}
+                      {cell.gastos > 0 && (
+                        <div className="text-rose-600 truncate">
+                          - {fmtCOP(cell.gastos)}
+                        </div>
+                      )}
+                      {cell.transfer > 0 && (
+                        <div className="text-blue-600 truncate">
+                          ⇄ {fmtCOP(cell.transfer)}
+                        </div>
+                      )}
                     </div>
                   </button>
+                  // ----- FIN CAMBIO CALENDARIO -----
                 );
               })}
             </div>
@@ -1478,10 +1350,117 @@ export default function App() {
           onClose={() => setDayModal(null)}
         />
       )}
+      
+      {/* ----- INICIO NUEVO MODAL DE CONFIGURACIÓN ----- */}
+      {showSettings && (
+        <SettingsModal
+          open={showSettings}
+          onClose={() => setShowSettings(false)}
+          onShowTags={() => {
+            setShowSettings(false);
+            setShowTags(true);
+          }}
+          onExport={() => {
+            const blob = new Blob([JSON.stringify({ tx, tags, budget }, null, 2)], { type: "application/json" });
+            const a = document.createElement("a");
+            a.href = URL.createObjectURL(blob);
+            a.download = `finanzas_jader_${new Date().toISOString().slice(0,10)}.json`;
+            a.click();
+          }}
+          onSaveSettings={async () => {
+            try {
+              setCloudBusy(true);
+              await saveSettings({ tags, budget });
+              setCloudMsg("Ajustes guardados en la nube");
+              setTimeout(() => setCloudMsg(null), 2000);
+            } catch (err) {
+              setCloudMsg("Error al guardar ajustes");
+              setTimeout(() => setCloudMsg(null), 2500);
+              console.error(err);
+            } finally {
+              setCloudBusy(false);
+              setShowSettings(false);
+            }
+          }}
+          onSync={async () => {
+            try {
+              setCloudBusy(true);
+              // 1) Ajustes
+              await saveSettings({ tags, budget });
+              // 2) Movimientos -> push
+              await pushTxBulk(
+                tx.map((t) => ({
+                  id: t.id,
+                  type: t.type,
+                  account: t.account,
+                  to_account: t.toAccount || null,
+                  date: t.date,
+                  time: t.time,
+                  amount: t.amount,
+                  category: t.category,
+                  subcategory: t.subcategory,
+                  note: t.note || null,
+                }))
+              );
+              // 3) Pull para confirmar
+              const cloudTx = await pullTx();
+              const mapped: Tx[] = (cloudTx || []).map((r: any) => ({
+                id: r.id,
+                type: r.type,
+                account: r.account as Account,
+                toAccount: (r.to_account as Account) || "",
+                date: r.date,
+                time: r.time,
+                amount: Number(r.amount),
+                category: r.category,
+                subcategory: r.subcategory,
+                note: r.note || "",
+              }));
+              if (mapped.length) setTx(mapped);
+              setCloudMsg("Sincronizado ✅");
+              setTimeout(() => setCloudMsg(null), 1600);
+            } catch (e) {
+              console.error(e);
+              setCloudMsg("Error al sincronizar");
+              setTimeout(() => setCloudMsg(null), 2200);
+            } finally {
+              setCloudBusy(false);
+              setShowSettings(false);
+            }
+          }}
+          onImportChange={(e) => {
+            const f = e.target.files?.[0];
+            if (!f) return;
+            f.text().then((txt) => {
+              try {
+                const data = JSON.parse(txt);
+                if (Array.isArray(data.tx)) setTx(data.tx);
+                if (data.tags) setTags(data.tags);
+                if (data.budget) setBudget(data.budget);
+              } catch { alert("Archivo inválido"); }
+            });
+            setShowSettings(false);
+          }}
+          onToggleDark={() => setDark((d) => !d)}
+          onLogin={async () => {
+            const email = prompt("Escribe tu correo para recibir el enlace de inicio de sesión:");
+            if (!email) return;
+            try {
+              await signInWithEmail(email);
+              alert("Te envié un enlace a tu correo. Ábrelo y vuelve a esta página.");
+            } catch (e: any) { alert("No se pudo enviar el enlace: " + (e?.message || e)); }
+            setShowSettings(false);
+          }}
+          isLoggedIn={!!userEmail}
+          dark={dark}
+          cloudBusy={cloudBusy}
+        />
+      )}
+      {/* ----- FIN NUEVO MODAL DE CONFIGURACIÓN ----- */}
 
       {/* Toast de nube */}
       {cloudMsg && (
-        <div className="fixed bottom-4 right-4 px-3 py-2 rounded-md bg-slate-900 text-white text-sm shadow">
+        <div className="fixed bottom-4 right-4 px-3 py-2 rounded-md bg-slate-900 text-white text-sm shadow animate-pulse">
           {cloudMsg}
         </div>
       )}
@@ -1506,6 +1485,61 @@ export default function App() {
 
 /* ============================== Subcomponentes ============================== */
 
+// ----- INICIO NUEVO COMPONENTE SETTINGSMODAL -----
+function SettingsModal({
+  open,
+  onClose,
+  onShowTags,
+  onExport,
+  onSaveSettings,
+  onSync,
+  onImportChange,
+  onToggleDark,
+  onLogin,
+  isLoggedIn,
+  dark,
+  cloudBusy,
+}: {
+  open: boolean;
+  onClose: () => void;
+  onShowTags: () => void;
+  onExport: () => void;
+  onSaveSettings: () => Promise<void>;
+  onSync: () => Promise<void>;
+  onImportChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
+  onToggleDark: () => void;
+  onLogin: () => Promise<void>;
+  isLoggedIn: boolean;
+  dark: boolean;
+  cloudBusy: boolean;
+}) {
+  if (!open) return null;
+  return (
+    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={onClose}>
+      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
+          <h3 className="font-medium">Configuración y Acciones</h3>
+          <GhostBtn onClick={onClose}>Cerrar ✕</GhostBtn>
+        </div>
+        <div className="p-5 grid grid-cols-1 gap-3">
+          <HeaderBtn onClick={onShowTags}>🏷️ Gestionar Etiquetas</HeaderBtn>
+          <HeaderBtn onClick={onSaveSettings}>{cloudBusy ? "⏳ Guardando…" : "☁️ Guardar ajustes en la nube"}</HeaderBtn>
+          <HeaderBtn onClick={onSync}>☁️ Sincronizar todo</HeaderBtn>
+          <HeaderBtn onClick={onExport}>⬇️ Exportar datos (JSON)</HeaderBtn>
+          <label className="relative ripple w-full text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer transition active:scale-[0.98]">
+            ⬆️ Importar datos (JSON)
+            <input type="file" accept="application/json" hidden onChange={onImportChange} />
+          </label>
+          <HeaderBtn onClick={onToggleDark}>{dark ? "☀️ Activar Modo Claro" : "🌙 Activar Modo Oscuro"}</HeaderBtn>
+          {!isLoggedIn && <HeaderBtn onClick={onLogin}>✉️ Iniciar sesión</HeaderBtn>}
+        </div>
+      </div>
+    </div>
+  );
+}
+// ----- FIN NUEVO COMPONENTE SETTINGSMODAL -----
+
+
 function HeaderBtn({
   children,
   onClick,
@@ -1522,7 +1556,7 @@ function HeaderBtn({
       onMouseDown={onMouseDown}
       onClick={onClick}
       title={title}
-      className="relative ripple px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition active:scale-[0.98]"
+      className="relative ripple w-full text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition active:scale-[0.98]"
     >
       {children}
     </button>
