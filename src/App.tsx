@@ -29,7 +29,7 @@ import {
   signInWithEmail,
   getUser,
   pullTx,
-  upsertTxBulk as pushTxBulk,
+  upsertTxBulk,
   deleteTx as deleteTxCloud,
 } from "./lib/supabase";
 
@@ -1388,7 +1388,7 @@ export default function App() {
               // 1) Ajustes
               await saveSettings({ tags, budget });
               // 2) Movimientos -> push
-              await pushTxBulk(
+              await upsertTxBulk(
                 tx.map((t) => ({
                   id: t.id,
                   type: t.type,

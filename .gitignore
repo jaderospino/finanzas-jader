@@ -158,3 +158,7 @@ dist-ssr
 *.sln
 *.sw?
 >>>>>>> cda1176 (chore: proyecto finanzas inicial)
+# Ignora envs locales
+.env
+.env.*
+!.env.example
