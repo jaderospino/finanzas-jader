@@ -1,4 +1,4 @@
-// App.tsx
+// App.tsx - VERSIÓN FINAL CORREGIDA (SIN CARACTERES INVÁLIDOS)
 import React, {
   useEffect,
   useMemo,
@@ -207,7 +207,7 @@ export default function App() {
 
   // Modales
   const [showTags, setShowTags] = useState(false);
-  const [showSettings, setShowSettings] = useState(false); // <-- NUEVO ESTADO PARA MODAL DE CONFIGURACIÓN
+  const [showSettings, setShowSettings] = useState(false);
 
   // Ping a Supabase (solo prueba de conexión)
   useEffect(() => {
@@ -689,7 +689,7 @@ export default function App() {
   }, [tx]);
 
   useEffect(() => {
-    if (!monthsWithData.includes(month)) {
+    if (monthsWithData.length > 0 && !monthsWithData.includes(month)) {
       setMonth(monthsWithData[monthsWithData.length - 1]);
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -760,20 +760,21 @@ export default function App() {
             <div className="w-8 h-8 rounded-lg bg-slate-900 dark:bg-slate-200 text-white dark:text-slate-900 grid place-items-center font-semibold">
               F
             </div>
-            <h1 className="text-base sm:text-lg font-semibold">Finanzas — Jader</h1>
+            <h1 className="text-base sm:text-lg font-semibold">
+              Finanzas — Jader
+            </h1>
           </div>
-          
-          {/* ----- INICIO CAMBIO HEADER ----- */}
+
           <div className="flex flex-wrap items-center gap-2">
             {userEmail && (
               <span className="text-xs sm:text-sm px-2 py-1 rounded border border-slate-300 dark:border-slate-700">
                 {userEmail}
               </span>
             )}
-            <HeaderBtn onClick={() => setShowSettings(true)}>⚙️ Configuración</HeaderBtn>
+            <HeaderBtn onClick={() => setShowSettings(true)}>
+              ⚙️ Configuración
+            </HeaderBtn>
           </div>
-          {/* ----- FIN CAMBIO HEADER ----- */}
-
         </div>
       </header>
 
@@ -784,32 +785,72 @@ export default function App() {
           <div className="flex flex-wrap justify-center gap-3 sm:gap-5 z-0 relative">
             <HeroKpi title="Saldo actual" value={totals.saldoActual} good />
             <HeroKpi title="Ingresos (mes)" value={totals.ingresos} />
-            <HeroKpi title="Gastos (mes)" value={-Math.abs(totals.gastos)} danger />
+            <HeroKpi
+              title="Gastos (mes)"
+              value={-Math.abs(totals.gastos)}
+              danger
+            />
             <HeroKpi title="Ahorro (mes)" value={totals.ahorro} />
           </div>
 
           <div className="mt-3 sm:mt-4 grid grid-cols-2 md:grid-cols-3 lg:grid-cols-6 gap-2 sm:gap-4 z-0 relative">
-            <Kpi title="Banco Davivienda" value={totals.byAccountAllTime["Banco Davivienda"]} />
-            <Kpi title="Banco de Bogotá" value={totals.byAccountAllTime["Banco de Bogotá"]} />
+            <Kpi
+              title="Banco Davivienda"
+              value={totals.byAccountAllTime["Banco Davivienda"]}
+            />
+            <Kpi
+              title="Banco de Bogotá"
+              value={totals.byAccountAllTime["Banco de Bogotá"]}
+            />
             <Kpi title="Nequi" value={totals.byAccountAllTime["Nequi"]} />
             <Kpi title="Rappi" value={totals.byAccountAllTime["Rappi"]} />
-            <Kpi title="Efectivo" value={totals.byAccountAllTime["Efectivo"]} />
-            <Kpi title="TC Rappi" value={totals.byAccountAllTime["TC Rappi"]} extraClass="text-fuchsia-500" />
+            <Kpi
+              title="Efectivo"
+              value={totals.byAccountAllTime["Efectivo"]}
+            />
+            <Kpi
+              title="TC Rappi"
+              value={totals.byAccountAllTime["TC Rappi"]}
+              extraClass="text-fuchsia-500"
+            />
           </div>
         </section>
 
         {/* Tabs */}
-        {/* ----- INICIO CAMBIO TABS (OCULTAR EN MÓVIL) ----- */}
-        <section className="hidden sm:flex flex-wrap items-center gap-2 fade-up" style={{ animationDelay: "80ms" }}>
-        {/* ----- FIN CAMBIO TABS ----- */}
-          <TabButton active={tab === "capturar"} onClick={() => setTab("capturar")} txt="Capturar" />
-          <TabButton active={tab === "transferir"} onClick={() => setTab("transferir")} txt="Transferir" />
-          <TabButton active={tab === "presupuesto"} onClick={() => setTab("presupuesto")} txt="Presupuesto" />
-          <TabButton active={tab === "calendario"} onClick={() => setTab("calendario")} txt="Calendario" />
-          <TabButton active={tab === "tabla"} onClick={() => setTab("tabla")} txt="Tabla" />
+        <section
+          className="hidden sm:flex flex-wrap items-center gap-2 fade-up"
+          style={{ animationDelay: "80ms" }}
+        >
+          <TabButton
+            active={tab === "capturar"}
+            onClick={() => setTab("capturar")}
+            txt="Capturar"
+          />
+          <TabButton
+            active={tab === "transferir"}
+            onClick={() => setTab("transferir")}
+            txt="Transferir"
+          />
+          <TabButton
+            active={tab === "presupuesto"}
+            onClick={() => setTab("presupuesto")}
+            txt="Presupuesto"
+          />
+          <TabButton
+            active={tab === "calendario"}
+            onClick={() => setTab("calendario")}
+            txt="Calendario"
+          />
+          <TabButton
+            active={tab === "tabla"}
+            onClick={() => setTab("tabla")}
+            txt="Tabla"
+          />
 
           <div className="ms-auto flex items-center gap-2 sm:gap-3 w-full sm:w-auto">
-            <label className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">Mes</label>
+            <label className="text-xs sm:text-sm text-slate-600 dark:text-slate-300">
+              Mes
+            </label>
             <select
               value={month}
               onChange={(e) => setMonth(e.target.value)}
@@ -833,26 +874,34 @@ export default function App() {
                 <Row>
                   <Select
                     value={form.type}
-                    onChange={(v) => setForm((f) => ({ ...f, type: v as TxType }))}
+                    onChange={(v) =>
+                      setForm((f) => ({ ...f, type: v as TxType }))
+                    }
                     options={["Ingreso", "Gasto"]}
                   />
                   <input
                     type="date"
                     className="px-3 py-2 sm:py-2.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
                     value={form.date}
-                    onChange={(e) => setForm((f) => ({ ...f, date: e.target.value }))}
+                    onChange={(e) =>
+                      setForm((f) => ({ ...f, date: e.target.value }))
+                    }
                   />
                 </Row>
 
                 <Row>
                   <Select
                     value={form.account}
-                    onChange={(v) => setForm((f) => ({ ...f, account: v as Account }))}
+                    onChange={(v) =>
+                      setForm((f) => ({ ...f, account: v as Account }))
+                    }
                     options={ACCOUNTS}
                   />
                   <MoneyInput
                     value={form.amountRaw}
-                    onChange={(raw) => setForm((f) => ({ ...f, amountRaw: raw }))}
+                    onChange={(raw) =>
+                      setForm((f) => ({ ...f, amountRaw: raw }))
+                    }
                     placeholder="Monto (COP)"
                   />
                 </Row>
@@ -871,7 +920,9 @@ export default function App() {
                   />
                   <Select
                     value={form.subcategory}
-                    onChange={(v) => setForm((f) => ({ ...f, subcategory: v }))}
+                    onChange={(v) =>
+                      setForm((f) => ({ ...f, subcategory: v }))
+                    }
                     options={availableSubcats}
                   />
                 </Row>
@@ -880,7 +931,9 @@ export default function App() {
                   className="px-3 py-2 sm:py-2.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
                   placeholder="Nota (opcional)"
                   value={form.note}
-                  onChange={(e) => setForm((f) => ({ ...f, note: e.target.value }))}
+                  onChange={(e) =>
+                    setForm((f) => ({ ...f, note: e.target.value }))
+                  }
                 />
 
                 <div className="flex items-center gap-2">
@@ -914,10 +967,14 @@ export default function App() {
                       ? "Gasto por categoría"
                       : view === "cuenta"
                       ? "Gasto por cuenta"
-                      : `Subcategorías — ${selectedCat || "selecciona una categoría"}`}
+                      : `Subcategorías — ${
+                          selectedCat || "selecciona una categoría"
+                        }`}
                   </h3>
                   {view === "subcategoria" && (
-                    <GhostBtn onClick={() => setView("categoria")}>← Volver</GhostBtn>
+                    <GhostBtn onClick={() => setView("categoria")}>
+                      ← Volver
+                    </GhostBtn>
                   )}
                 </div>
                 <div className="h-56 sm:h-64">
@@ -937,7 +994,10 @@ export default function App() {
                         }}
                       >
                         {analyticsData.map((_, i) => (
-                          <Cell key={i} fill={PIE_COLORS[i % PIE_COLORS.length]} />
+                          <Cell
+                            key={i}
+                            fill={PIE_COLORS[i % PIE_COLORS.length]}
+                          />
                         ))}
                       </Pie>
                       <RTooltip formatter={(v: any) => fmtCOP(v as number)} />
@@ -946,7 +1006,10 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up" style={{ animationDelay: "60ms" }}>
+              <div
+                className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up"
+                style={{ animationDelay: "60ms" }}
+              >
                 <h3 className="font-medium mb-3">Evolución (6 meses)</h3>
                 <div className="h-56 sm:h-64">
                   <ResponsiveContainer width="100%" height="100%">
@@ -963,12 +1026,27 @@ export default function App() {
                 </div>
               </div>
 
-              <div className="xl:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up" style={{ animationDelay: "100ms" }}>
+              <div
+                className="xl:col-span-2 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up"
+                style={{ animationDelay: "100ms" }}
+              >
                 <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
                   <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 overflow-hidden">
-                    <ToggleBtn active={view === "categoria"} onClick={() => setView("categoria")} txt="Categoría" />
-                    <ToggleBtn active={view === "subcategoria"} onClick={() => setView("subcategoria")} txt="Subcategoría" />
-                    <ToggleBtn active={view === "cuenta"} onClick={() => setView("cuenta")} txt="Cuenta" />
+                    <ToggleBtn
+                      active={view === "categoria"}
+                      onClick={() => setView("categoria")}
+                      txt="Categoría"
+                    />
+                    <ToggleBtn
+                      active={view === "subcategoria"}
+                      onClick={() => setView("subcategoria")}
+                      txt="Subcategoría"
+                    />
+                    <ToggleBtn
+                      active={view === "cuenta"}
+                      onClick={() => setView("cuenta")}
+                      txt="Cuenta"
+                    />
                   </div>
 
                   <Select
@@ -979,8 +1057,16 @@ export default function App() {
                   />
 
                   <div className="inline-flex rounded-md border border-slate-300 dark:border-slate-700 overflow-hidden">
-                    <ToggleBtn active={timeMode === "mes"} onClick={() => setTimeMode("mes")} txt="Mes actual" />
-                    <ToggleBtn active={timeMode === "rango"} onClick={() => setTimeMode("rango")} txt="Rango" />
+                    <ToggleBtn
+                      active={timeMode === "mes"}
+                      onClick={() => setTimeMode("mes")}
+                      txt="Mes actual"
+                    />
+                    <ToggleBtn
+                      active={timeMode === "rango"}
+                      onClick={() => setTimeMode("rango")}
+                      txt="Rango"
+                    />
                   </div>
 
                   {timeMode === "rango" && (
@@ -1026,7 +1112,9 @@ export default function App() {
                     ? "Gasto por categoría"
                     : view === "cuenta"
                     ? "Gasto por cuenta"
-                    : `Subcategorías — ${selectedCat || "selecciona una categoría"}`}
+                    : `Subcategorías — ${
+                        selectedCat || "selecciona una categoría"
+                      }`}
                 </h3>
                 <div className="h-56 sm:h-64">
                   <ResponsiveContainer width="100%" height="100%">
@@ -1052,7 +1140,8 @@ export default function App() {
                   </ResponsiveContainer>
                 </div>
                 <div className="text-[11px] sm:text-xs text-slate-500 mt-2">
-                  Cambia la vista (Categoría / Subcategoría / Cuenta) y el alcance (Mes / Rango).
+                  Cambia la vista (Categoría / Subcategoría / Cuenta) y el
+                  alcance (Mes / Rango).
                 </div>
               </div>
             </div>
@@ -1085,7 +1174,9 @@ export default function App() {
                 type="date"
                 className="px-3 py-2 sm:py-2.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
                 value={trf.date}
-                onChange={(e) => setTrf((f) => ({ ...f, date: e.target.value }))}
+                onChange={(e) =>
+                  setTrf((f) => ({ ...f, date: e.target.value }))
+                }
               />
               <div className="sm:col-span-2">
                 <PrimaryBtn onClick={handleTransfer}>Transferir</PrimaryBtn>
@@ -1118,7 +1209,10 @@ export default function App() {
               </div>
             </div>
 
-            <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up" style={{ animationDelay: "60ms" }}>
+            <div
+              className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up"
+              style={{ animationDelay: "60ms" }}
+            >
               <h3 className="font-medium mb-3">Real vs plan (mes)</h3>
               <div className="h-56 sm:h-64">
                 <ResponsiveContainer width="100%" height="100%">
@@ -1128,7 +1222,11 @@ export default function App() {
                         name: "Gastos Básicos",
                         real:
                           txOfMonth
-                            .filter((t) => t.category === "Gastos Básicos" && t.type === "Gasto")
+                            .filter(
+                              (t) =>
+                                t.category === "Gastos Básicos" &&
+                                t.type === "Gasto"
+                            )
                             .reduce((s, t) => s + Math.abs(t.amount), 0) || 0,
                         plan: budget.basicos,
                       },
@@ -1136,7 +1234,10 @@ export default function App() {
                         name: "Deseos",
                         real:
                           txOfMonth
-                            .filter((t) => t.category === "Deseos" && t.type === "Gasto")
+                            .filter(
+                              (t) =>
+                                t.category === "Deseos" && t.type === "Gasto"
+                            )
                             .reduce((s, t) => s + Math.abs(t.amount), 0) || 0,
                         plan: budget.deseos,
                       },
@@ -1170,12 +1271,19 @@ export default function App() {
             <div className="flex items-center justify-between mb-3">
               <h3 className="font-medium">Calendario — {month}</h3>
               <div className="text-xs text-slate-500">
-                Ingresos en verde · Gastos en rojo · Transferencias en <span className="font-semibold text-blue-600">azul</span>
+                Ingresos en verde · Gastos en rojo · Transferencias en{" "}
+                <span className="font-semibold text-blue-600">azul</span>
               </div>
             </div>
 
             <div className="grid grid-cols-7 text-center text-xs font-medium text-slate-500 mb-2">
-              <div>Dom</div><div>Lun</div><div>Mar</div><div>Mié</div><div>Jue</div><div>Vie</div><div>Sáb</div>
+              <div>Dom</div>
+              <div>Lun</div>
+              <div>Mar</div>
+              <div>Mié</div>
+              <div>Jue</div>
+              <div>Vie</div>
+              <div>Sáb</div>
             </div>
 
             <div className="grid grid-cols-7 gap-2">
@@ -1191,18 +1299,23 @@ export default function App() {
                 const day = Number(cell.date.slice(-2));
                 const clickable = (cell.items || []).length > 0;
                 return (
-                  // ----- INICIO CAMBIO CALENDARIO -----
                   <button
                     key={cell.date}
                     onClick={() =>
-                      clickable && setDayModal({ date: cell.date!, items: cell.items || [] })
+                      clickable &&
+                      setDayModal({
+                        date: cell.date!,
+                        items: cell.items || [],
+                      })
                     }
                     className={`min-h-[110px] rounded-lg border p-1.5 flex flex-col text-left transition
-                      fade-up calendar-cell overflow-hidden 
+                      fade-up calendar-cell overflow-hidden
                       bg-white dark:bg-slate-900
-                      ${clickable
-                        ? "border-slate-200 dark:border-slate-700 hover:shadow-lg hover:-translate-y-0.5 hover:bg-slate-50 dark:hover:bg-slate-800"
-                        : "border-slate-200/60 dark:border-slate-700/60 opacity-80 cursor-default"}`}
+                      ${
+                        clickable
+                          ? "border-slate-200 dark:border-slate-700 hover:shadow-lg hover:-translate-y-0.5 hover:bg-slate-50 dark:hover:bg-slate-800"
+                          : "border-slate-200/60 dark:border-slate-700/60 opacity-80 cursor-default"
+                      }`}
                     style={{ animationDelay: `${(idx % 14) * 20}ms` }}
                   >
                     <div className="text-xs text-slate-500">{day}</div>
@@ -1224,7 +1337,6 @@ export default function App() {
                       )}
                     </div>
                   </button>
-                  // ----- FIN CAMBIO CALENDARIO -----
                 );
               })}
             </div>
@@ -1255,7 +1367,9 @@ export default function App() {
               />
 
               <div className="ms-auto flex items-center gap-2">
-                <DangerGhost onClick={deleteSelected}>Eliminar selección</DangerGhost>
+                <DangerGhost onClick={deleteSelected}>
+                  Eliminar selección
+                </DangerGhost>
                 <GhostBtn onClick={deleteAll}>Eliminar todo</GhostBtn>
               </div>
             </div>
@@ -1278,7 +1392,10 @@ export default function App() {
                 </thead>
                 <tbody>
                   {pageRows.map((r) => (
-                    <tr key={r.id} className="border-t border-slate-200 dark:border-slate-700">
+                    <tr
+                      key={r.id}
+                      className="border-t border-slate-200 dark:border-slate-700"
+                    >
                       <td className="py-2 px-2">
                         <input
                           type="checkbox"
@@ -1287,7 +1404,8 @@ export default function App() {
                         />
                       </td>
                       <td className="py-2 px-2 whitespace-nowrap">
-                        {r.date} <span className="text-slate-400">{r.time}</span>
+                        {r.date}{" "}
+                        <span className="text-slate-400">{r.time}</span>
                       </td>
                       <td className="py-2 px-2">{r.type}</td>
                       <td className="py-2 px-2">{r.account}</td>
@@ -1314,7 +1432,10 @@ export default function App() {
                   ))}
                   {pageRows.length === 0 && (
                     <tr>
-                      <td colSpan={10} className="py-6 text-center text-slate-500">
+                      <td
+                        colSpan={10}
+                        className="py-6 text-center text-slate-500"
+                      >
                         Sin datos
                       </td>
                     </tr>
@@ -1324,11 +1445,17 @@ export default function App() {
             </div>
 
             <div className="flex items-center justify-center gap-2 mt-2 sm:mt-3 text-xs sm:text-sm">
-              <GhostBtn onClick={() => setPage((p) => Math.max(1, p - 1))}>◀</GhostBtn>
+              <GhostBtn onClick={() => setPage((p) => Math.max(1, p - 1))}>
+                ◀
+              </GhostBtn>
               <span className="text-slate-600 dark:text-slate-300">
                 {page} / {pageCount}
               </span>
-              <GhostBtn onClick={() => setPage((p) => Math.min(pageCount, p + 1))}>▶</GhostBtn>
+              <GhostBtn
+                onClick={() => setPage((p) => Math.min(pageCount, p + 1))}
+              >
+                ▶
+              </GhostBtn>
             </div>
           </section>
         )}
@@ -1345,13 +1472,10 @@ export default function App() {
 
       {/* Modal detalle de día */}
       {dayModal && (
-        <DayModal
-          data={dayModal}
-          onClose={() => setDayModal(null)}
-        />
+        <DayModal data={dayModal} onClose={() => setDayModal(null)} />
       )}
-      
-      {/* ----- INICIO NUEVO MODAL DE CONFIGURACIÓN ----- */}
+
+      {/* Modal de Configuración */}
       {showSettings && (
         <SettingsModal
           open={showSettings}
@@ -1361,10 +1485,15 @@ export default function App() {
             setShowTags(true);
           }}
           onExport={() => {
-            const blob = new Blob([JSON.stringify({ tx, tags, budget }, null, 2)], { type: "application/json" });
+            const blob = new Blob(
+              [JSON.stringify({ tx, tags, budget }, null, 2)],
+              { type: "application/json" }
+            );
             const a = document.createElement("a");
             a.href = URL.createObjectURL(blob);
-            a.download = `finanzas_jader_${new Date().toISOString().slice(0,10)}.json`;
+            a.download = `finanzas_jader_${new Date()
+              .toISOString()
+              .slice(0, 10)}.json`;
             a.click();
           }}
           onSaveSettings={async () => {
@@ -1385,9 +1514,7 @@ export default function App() {
           onSync={async () => {
             try {
               setCloudBusy(true);
-              // 1) Ajustes
               await saveSettings({ tags, budget });
-              // 2) Movimientos -> push
               await upsertTxBulk(
                 tx.map((t) => ({
                   id: t.id,
@@ -1402,7 +1529,6 @@ export default function App() {
                   note: t.note || null,
                 }))
               );
-              // 3) Pull para confirmar
               const cloudTx = await pullTx();
               const mapped: Tx[] = (cloudTx || []).map((r: any) => ({
                 id: r.id,
@@ -1437,18 +1563,26 @@ export default function App() {
                 if (Array.isArray(data.tx)) setTx(data.tx);
                 if (data.tags) setTags(data.tags);
                 if (data.budget) setBudget(data.budget);
-              } catch { alert("Archivo inválido"); }
+              } catch {
+                alert("Archivo inválido");
+              }
             });
             setShowSettings(false);
           }}
           onToggleDark={() => setDark((d) => !d)}
           onLogin={async () => {
-            const email = prompt("Escribe tu correo para recibir el enlace de inicio de sesión:");
+            const email = prompt(
+              "Escribe tu correo para recibir el enlace de inicio de sesión:"
+            );
             if (!email) return;
             try {
               await signInWithEmail(email);
-              alert("Te envié un enlace a tu correo. Ábrelo y vuelve a esta página.");
-            } catch (e: any) { alert("No se pudo enviar el enlace: " + (e?.message || e)); }
+              alert(
+                "Te envié un enlace a tu correo. Ábrelo y vuelve a esta página."
+              );
+            } catch (e: any) {
+              alert("No se pudo enviar el enlace: " + (e?.message || e));
+            }
             setShowSettings(false);
           }}
           isLoggedIn={!!userEmail}
@@ -1456,7 +1590,6 @@ export default function App() {
           cloudBusy={cloudBusy}
         />
       )}
-      {/* ----- FIN NUEVO MODAL DE CONFIGURACIÓN ----- */}
 
       {/* Toast de nube */}
       {cloudMsg && (
@@ -1468,16 +1601,37 @@ export default function App() {
       {/* Navegación móvil */}
       <nav className="fixed z-40 bottom-3 left-1/2 -translate-x-1/2 sm:hidden">
         <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-700 rounded-full px-2 py-1 flex gap-1">
-          <TabButton active={tab === "capturar"} onClick={() => setTab("capturar")} txt="Capturar" />
-          <TabButton active={tab === "transferir"} onClick={() => setTab("transferir")} txt="Transferir" />
-          <TabButton active={tab === "presupuesto"} onClick={() => setTab("presupuesto")} txt="Presupuesto" />
-          <TabButton active={tab === "calendario"} onClick={() => setTab("calendario")} txt="Calendario" />
-          <TabButton active={tab === "tabla"} onClick={() => setTab("tabla")} txt="Tabla" />
+          <TabButton
+            active={tab === "capturar"}
+            onClick={() => setTab("capturar")}
+            txt="Capturar"
+          />
+          <TabButton
+            active={tab === "transferir"}
+            onClick={() => setTab("transferir")}
+            txt="Transferir"
+          />
+          <TabButton
+            active={tab === "presupuesto"}
+            onClick={() => setTab("presupuesto")}
+            txt="Presupuesto"
+          />
+          <TabButton
+            active={tab === "calendario"}
+            onClick={() => setTab("calendario")}
+            txt="Calendario"
+          />
+          <TabButton
+            active={tab === "tabla"}
+            onClick={() => setTab("tabla")}
+            txt="Tabla"
+          />
         </div>
       </nav>
 
       <footer className="px-3 sm:px-4 py-4 text-[11px] sm:text-xs text-slate-500 dark:text-slate-400">
-        Hecho para Jader — Datos guardados en tu navegador (localStorage) y sincronizables con Supabase
+        Hecho para Jader — Datos guardados en tu navegador (localStorage) y
+        sincronizables con Supabase
       </footer>
     </div>
   );
@@ -1485,7 +1639,6 @@ export default function App() {
 
 /* ============================== Subcomponentes ============================== */
 
-// ----- INICIO NUEVO COMPONENTE SETTINGSMODAL -----
 function SettingsModal({
   open,
   onClose,
@@ -1515,39 +1668,64 @@ function SettingsModal({
 }) {
   if (!open) return null;
   return (
-    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={onClose}>
-      <div className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl" onClick={(e) => e.stopPropagation()}>
+    <div
+      className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm grid place-items-center p-4 z-50"
+      onClick={onClose}
+    >
+      <div
+        className="w-full max-w-sm bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl"
+        onClick={(e) => e.stopPropagation()}
+      >
         <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700 flex items-center justify-between">
           <h3 className="font-medium">Configuración y Acciones</h3>
           <GhostBtn onClick={onClose}>Cerrar ✕</GhostBtn>
         </div>
         <div className="p-5 grid grid-cols-1 gap-3">
-          <HeaderBtn onClick={onShowTags}>🏷️ Gestionar Etiquetas</HeaderBtn>
-          <HeaderBtn onClick={onSaveSettings}>{cloudBusy ? "⏳ Guardando…" : "☁️ Guardar ajustes en la nube"}</HeaderBtn>
-          <HeaderBtn onClick={onSync}>☁️ Sincronizar todo</HeaderBtn>
-          <HeaderBtn onClick={onExport}>⬇️ Exportar datos (JSON)</HeaderBtn>
+          <HeaderBtn onClick={onShowTags} fullWidth>
+            🏷️ Gestionar Etiquetas
+          </HeaderBtn>
+          <HeaderBtn onClick={onSaveSettings} fullWidth>
+            {cloudBusy ? "⏳ Guardando…" : "☁️ Guardar ajustes en la nube"}
+          </HeaderBtn>
+          <HeaderBtn onClick={onSync} fullWidth>
+            ☁️ Sincronizar todo
+          </HeaderBtn>
+          <HeaderBtn onClick={onExport} fullWidth>
+            ⬇️ Exportar datos (JSON)
+          </HeaderBtn>
           <label className="relative ripple w-full text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer transition active:scale-[0.98]">
             ⬆️ Importar datos (JSON)
-            <input type="file" accept="application/json" hidden onChange={onImportChange} />
+            <input
+              type="file"
+              accept="application/json"
+              hidden
+              onChange={onImportChange}
+            />
           </label>
-          <HeaderBtn onClick={onToggleDark}>{dark ? "☀️ Activar Modo Claro" : "🌙 Activar Modo Oscuro"}</HeaderBtn>
-          {!isLoggedIn && <HeaderBtn onClick={onLogin}>✉️ Iniciar sesión</HeaderBtn>}
+          <HeaderBtn onClick={onToggleDark} fullWidth>
+            {dark ? "☀️ Activar Modo Claro" : "🌙 Activar Modo Oscuro"}
+          </HeaderBtn>
+          {!isLoggedIn && (
+            <HeaderBtn onClick={onLogin} fullWidth>
+              ✉️ Iniciar sesión
+            </HeaderBtn>
+          )}
         </div>
       </div>
     </div>
   );
 }
-// ----- FIN NUEVO COMPONENTE SETTINGSMODAL -----
-
 
 function HeaderBtn({
   children,
   onClick,
   title,
+  fullWidth = false,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   title?: string;
+  fullWidth?: boolean;
 }) {
   const { ref, onMouseDown } = useRipple();
   return (
@@ -1556,7 +1734,9 @@ function HeaderBtn({
       onMouseDown={onMouseDown}
       onClick={onClick}
       title={title}
-      className="relative ripple w-full text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition active:scale-[0.98]"
+      className={`relative ripple text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition active:scale-[0.98] ${
+        fullWidth ? "w-full" : ""
+      }`}
     >
       {children}
     </button>
@@ -1655,7 +1835,9 @@ function FitAmount({
   min?: number;
 }) {
   const animated = useCountUp(amount, 700);
-  return <FitText text={fmtCOP(animated)} className={className} max={max} min={min} />;
+  return (
+    <FitText text={fmtCOP(animated)} className={className} max={max} min={min} />
+  );
 }
 
 function HeroKpi({
@@ -1700,7 +1882,10 @@ function HeroKpi({
         <div className="text-[12px] sm:text-sm text-slate-500 dark:text-slate-300 mb-1">
           {title}
         </div>
-        <FitAmount amount={value} className={`${colorClass} ${extraClass || ""}`} />
+        <FitAmount
+          amount={value}
+          className={`${colorClass} ${extraClass || ""}`}
+        />
       </div>
     </div>
   );
@@ -1723,9 +1908,11 @@ function TabButton({
       onClick={onClick}
       className={`relative ripple px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs sm:text-sm transition
         active:scale-[0.98]
-        ${active
-          ? "bg-slate-900 text-white border-slate-900"
-          : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"}`}
+        ${
+          active
+            ? "bg-slate-900 text-white border-slate-900"
+            : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
+        }`}
     >
       {txt}
     </button>
@@ -1733,7 +1920,11 @@ function TabButton({
 }
 
 function Row({ children }: { children: React.ReactNode }) {
-  return <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">{children}</div>;
+  return (
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-2 sm:gap-3">
+      {children}
+    </div>
+  );
 }
 
 function Select<T extends string>({
