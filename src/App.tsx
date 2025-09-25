@@ -602,18 +602,40 @@ export default function App() {
   const PAGE_SIZE = 10;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
+  // --- INICIO NUEVOS ESTADOS PARA FILTROS ---
+  const [filterDateFrom, setFilterDateFrom] = useState("");
+  const [filterDateTo, setFilterDateTo] = useState("");
+  const [filterType, setFilterType] = useState<TxType | "Todos">("Todos");
+  const [filterAccount, setFilterAccount] = useState<Account | "Todas">(
+    "Todas"
+  );
+  // --- FIN NUEVOS ESTADOS PARA FILTROS ---
+
   const filteredSorted = useMemo(() => {
     const q = search.trim().toLowerCase();
+
     const base = tx.filter((t) => {
-      if (!q) return true;
-      return (
+      // Filtro por texto de búsqueda (existente)
+      const searchMatch =
+        !q ||
         t.category.toLowerCase().includes(q) ||
         t.subcategory.toLowerCase().includes(q) ||
         t.account.toLowerCase().includes(q) ||
-        (t.note || "").toLowerCase().includes(q)
+        (t.note || "").toLowerCase().includes(q);
+
+      // Nuevos filtros
+      const dateFromMatch = !filterDateFrom || t.date >= filterDateFrom;
+      const dateToMatch = !filterDateTo || t.date <= filterDateTo;
+      const typeMatch = filterType === "Todos" || t.type === filterType;
+      const accountMatch =
+        filterAccount === "Todos" || t.account === filterAccount;
+
+      return (
+        searchMatch && dateFromMatch && dateToMatch && typeMatch && accountMatch
       );
     });
 
+    // El código de ordenación no cambia
     base.sort((a, b) => {
       if (sortKey === "fecha") {
         const da = a.date + " " + a.time;
@@ -626,7 +648,16 @@ export default function App() {
       }
     });
     return base;
-  }, [tx, search, sortKey, sortDir]);
+  }, [
+    tx,
+    search,
+    sortKey,
+    sortDir,
+    filterDateFrom,
+    filterDateTo,
+    filterType,
+    filterAccount,
+  ]);
 
   const pageCount = Math.max(1, Math.ceil(filteredSorted.length / PAGE_SIZE));
   const pageRows = filteredSorted.slice(
@@ -1361,11 +1392,12 @@ export default function App() {
         {/* TABLA */}
         {tab === "tabla" && (
           <section className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up">
-            <div className="flex flex-wrap items-center gap-2 sm:gap-3 mb-3">
+            <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border dark:border-slate-700">
+              {/* Fila 1: Búsqueda y Ordenación */}
               <input
                 value={search}
                 onChange={(e) => setSearch(e.target.value)}
-                placeholder="Buscar…"
+                placeholder="Buscar en notas, cat..."
                 className="px-3 py-2 sm:py-2.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
               />
               <Select
@@ -1378,14 +1410,66 @@ export default function App() {
                 value={sortDir}
                 onChange={(v) => setSortDir(v as any)}
                 options={["Asc", "Desc"]}
-                label=""
               />
 
-              <div className="ms-auto flex items-center gap-2">
+              {/* Fila 2: Nuevos Filtros */}
+              <div className="w-full h-px bg-slate-200 dark:bg-slate-700 my-2"></div>
+
+              <Select
+                value={filterType}
+                onChange={(v) => setFilterType(v as any)}
+                options={["Todos", "Ingreso", "Gasto", "Transferencia"]}
+                label="Tipo"
+              />
+              <Select
+                value={filterAccount}
+                onChange={(v) => setFilterAccount(v as any)}
+                options={["Todas", ...ACCOUNTS]}
+                label="Cuenta"
+              />
+              <div className="flex items-end gap-2">
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300">
+                    Desde
+                  </span>
+                  <input
+                    type="date"
+                    value={filterDateFrom}
+                    onChange={(e) => setFilterDateFrom(e.target.value)}
+                    className="px-3 py-2 sm:py-2.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                  />
+                </label>
+                <label className="flex flex-col gap-1">
+                  <span className="text-[11px] sm:text-xs text-slate-600 dark:text-slate-300">
+                    Hasta
+                  </span>
+                  <input
+                    type="date"
+                    value={filterDateTo}
+                    onChange={(e) => setFilterDateTo(e.target.value)}
+                    className="px-3 py-2 sm:py-2.5 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"
+                  />
+                </label>
+              </div>
+
+              <GhostBtn
+                onClick={() => {
+                  setSearch("");
+                  setFilterDateFrom("");
+                  setFilterDateTo("");
+                  setFilterType("Todos");
+                  setFilterAccount("Todas");
+                }}
+                className="self-end"
+              >
+                Limpiar
+              </GhostBtn>
+
+              {/* Botones de eliminar (movidos al final a la derecha) */}
+              <div className="ms-auto flex items-center gap-2 self-end">
                 <DangerGhost onClick={deleteSelected}>
                   Eliminar selección
                 </DangerGhost>
-                <GhostBtn onClick={deleteAll}>Eliminar todo</GhostBtn>
               </div>
             </div>
 
