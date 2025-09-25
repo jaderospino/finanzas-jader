@@ -12,11 +12,9 @@ export const supabase: SupabaseClient = createClient(url, key, {
 /** Ping rápido para comprobar conexión (opcional) */
 export async function checkSupabase() {
   try {
-    // si no existe "settings", no falla: usamos una función ligera
-    const { data, error } = await supabase.rpc("now"); // requiere la RPC built-in
+    const { error } = await supabase.rpc("now");
     return error ?? null;
   } catch (e: any) {
-    // fallback: intenta leer 1 fila de settings si existe
     try {
       const { error } = await supabase.from("settings").select("updated_at").limit(1);
       return error ?? null;
@@ -39,7 +37,7 @@ export async function getUser() {
 export async function signInWithEmail(email: string) {
   const { error } = await supabase.auth.signInWithOtp({
     email,
-    options: { emailRedirectTo: window.location.href },
+    options: { emailRedirectTo: window.location.origin },
   });
   if (error) throw error;
 }
@@ -118,63 +116,7 @@ export async function pullTx(): Promise<TxRow[]> {
   return (data as TxRow[]) ?? [];
 }
 
-export async function addTx(row: Omit<TxRow, "user_id">) {
-  const user = await getUser();
-  if (!user) throw new Error("No hay sesión. Inicia sesión primero.");
-  const payload = { ...row, user_id: user.id, to_account: row.to_account ?? null, note: row.note ?? null };
-  const { error } = await supabase.from("movements").insert(payload);
-  if (error) throw error;
-}
-
-export async function addTransfer({
-  fromAccount,
-  toAccount,
-  date,
-  time,
-  amount,
-  note,
-}: {
-  fromAccount: string;
-  toAccount: string;
-  date: string;
-  time: string;
-  amount: number; // positivo
-  note?: string | null;
-}) {
-  const user = await getUser();
-  if (!user) throw new Error("No hay sesión. Inicia sesión primero.");
-  const rows: Omit<TxRow, "user_id">[] = [
-    {
-      id: crypto.randomUUID(),
-      type: "Transferencia",
-      account: fromAccount,
-      to_account: toAccount,
-      date,
-      time,
-      amount: -Math.abs(amount),
-      category: "Ingresos",
-      subcategory: "Entre cuentas",
-      note: note ?? null,
-    },
-    {
-      id: crypto.randomUUID(),
-      type: "Transferencia",
-      account: toAccount,
-      to_account: fromAccount,
-      date,
-      time,
-      amount: Math.abs(amount),
-      category: "Ingresos",
-      subcategory: "Entre cuentas",
-      note: note ?? null,
-    },
-  ];
-  const payload = rows.map((r) => ({ ...r, user_id: user.id }));
-  const { error } = await supabase.from("movements").insert(payload);
-  if (error) throw error;
-}
-
-export async function upsertTxBulk(rows: Omit<TxRow, "user_id">[]) {
+export async function upsertTxBulk(rows: Omit<TxRow, "user_id" | "created_at">[]) {
   const user = await getUser();
   if (!user) throw new Error("No hay sesión. Inicia sesión primero.");
   if (!rows.length) return;
@@ -193,22 +135,4 @@ export async function deleteTx(ids: string[]) {
   if (!user || !ids.length) return;
   const { error } = await supabase.from("movements").delete().in("id", ids).eq("user_id", user.id);
   if (error) throw error;
-}
-
-/* ============================== Realtime (opcional) ============================== */
-
-export function subscribeMovements(userId: string, onChange: (evt: "INSERT" | "UPDATE" | "DELETE", row: Partial<TxRow>) => void) {
-  const channel = supabase
-    .channel("movements-realtime")
-    .on(
-      "postgres_changes",
-      { event: "*", schema: "public", table: "movements", filter: `user_id=eq.${userId}` },
-      (payload) => {
-        const evt = payload.eventType as "INSERT" | "UPDATE" | "DELETE";
-        const row = (evt === "DELETE" ? payload.old : payload.new) as Partial<TxRow>;
-        onChange(evt, row);
-      }
-    )
-    .subscribe();
-  return () => supabase.removeChannel(channel);
 }

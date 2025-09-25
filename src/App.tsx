@@ -1,4 +1,4 @@
-// App.tsx - VERSIÓN FINAL CORREGIDA (SIN CARACTERES INVÁLIDOS)
+// App.tsx
 import React, {
   useEffect,
   useMemo,
@@ -31,6 +31,7 @@ import {
   pullTx,
   upsertTxBulk,
   deleteTx as deleteTxCloud,
+  signOut,
 } from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
@@ -444,6 +445,20 @@ export default function App() {
 
     setTx((t) => [out, inc, ...t]);
     setTrf((v) => ({ ...v, amountRaw: "" }));
+  };
+
+  /* -------- Cerrar Sesión -------- */
+  const handleSignOut = async () => {
+    try {
+      await signOut();
+      setUserEmail(null);
+      setTx([]);
+      setTags(defaultTags);
+      setBudget({ basicos: 0, deseos: 0, ahorro: 0 });
+      setShowSettings(false);
+    } catch (error) {
+      console.error("Error al cerrar sesión", error);
+    }
   };
 
   /* ============================= Cálculos base ============================= */
@@ -1585,6 +1600,7 @@ export default function App() {
             }
             setShowSettings(false);
           }}
+          onSignOut={handleSignOut}
           isLoggedIn={!!userEmail}
           dark={dark}
           cloudBusy={cloudBusy}
@@ -1649,6 +1665,7 @@ function SettingsModal({
   onImportChange,
   onToggleDark,
   onLogin,
+  onSignOut,
   isLoggedIn,
   dark,
   cloudBusy,
@@ -1662,6 +1679,7 @@ function SettingsModal({
   onImportChange: (e: React.ChangeEvent<HTMLInputElement>) => void;
   onToggleDark: () => void;
   onLogin: () => Promise<void>;
+  onSignOut: () => void;
   isLoggedIn: boolean;
   dark: boolean;
   cloudBusy: boolean;
@@ -1681,34 +1699,44 @@ function SettingsModal({
           <GhostBtn onClick={onClose}>Cerrar ✕</GhostBtn>
         </div>
         <div className="p-5 grid grid-cols-1 gap-3">
-          <HeaderBtn onClick={onShowTags} fullWidth>
+          <HeaderBtn onClick={onShowTags} fullWidth disabled={cloudBusy}>
             🏷️ Gestionar Etiquetas
           </HeaderBtn>
-          <HeaderBtn onClick={onSaveSettings} fullWidth>
+          <HeaderBtn onClick={onSaveSettings} fullWidth disabled={cloudBusy}>
             {cloudBusy ? "⏳ Guardando…" : "☁️ Guardar ajustes en la nube"}
           </HeaderBtn>
-          <HeaderBtn onClick={onSync} fullWidth>
-            ☁️ Sincronizar todo
+          <HeaderBtn onClick={onSync} fullWidth disabled={cloudBusy}>
+            {cloudBusy ? "⏳ Sincronizando…" : "☁️ Sincronizar todo"}
           </HeaderBtn>
-          <HeaderBtn onClick={onExport} fullWidth>
+          <HeaderBtn onClick={onExport} fullWidth disabled={cloudBusy}>
             ⬇️ Exportar datos (JSON)
           </HeaderBtn>
-          <label className="relative ripple w-full text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer transition active:scale-[0.98]">
+          <label
+            className={`relative ripple w-full text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer transition active:scale-[0.98] ${
+              cloudBusy ? "opacity-50 cursor-not-allowed" : ""
+            }`}
+          >
             ⬆️ Importar datos (JSON)
             <input
               type="file"
               accept="application/json"
               hidden
               onChange={onImportChange}
+              disabled={cloudBusy}
             />
           </label>
-          <HeaderBtn onClick={onToggleDark} fullWidth>
+          <HeaderBtn onClick={onToggleDark} fullWidth disabled={cloudBusy}>
             {dark ? "☀️ Activar Modo Claro" : "🌙 Activar Modo Oscuro"}
           </HeaderBtn>
           {!isLoggedIn && (
-            <HeaderBtn onClick={onLogin} fullWidth>
+            <HeaderBtn onClick={onLogin} fullWidth disabled={cloudBusy}>
               ✉️ Iniciar sesión
             </HeaderBtn>
+          )}
+          {isLoggedIn && (
+            <DangerGhost onClick={onSignOut} disabled={cloudBusy}>
+              🔒 Cerrar Sesión
+            </DangerGhost>
           )}
         </div>
       </div>
@@ -1721,11 +1749,13 @@ function HeaderBtn({
   onClick,
   title,
   fullWidth = false,
+  disabled = false,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   title?: string;
   fullWidth?: boolean;
+  disabled?: boolean;
 }) {
   const { ref, onMouseDown } = useRipple();
   return (
@@ -1734,9 +1764,10 @@ function HeaderBtn({
       onMouseDown={onMouseDown}
       onClick={onClick}
       title={title}
+      disabled={disabled}
       className={`relative ripple text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition active:scale-[0.98] ${
         fullWidth ? "w-full" : ""
-      }`}
+      } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
     >
       {children}
     </button>
@@ -2065,9 +2096,11 @@ function GhostBtn({
 function DangerGhost({
   children,
   onClick,
+  disabled = false,
 }: {
   children: React.ReactNode;
   onClick?: () => void;
+  disabled?: boolean;
 }) {
   const { ref, onMouseDown } = useRipple();
   return (
@@ -2075,7 +2108,10 @@ function DangerGhost({
       ref={ref}
       onMouseDown={onMouseDown}
       onClick={onClick}
-      className="relative ripple px-3 py-2 rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-sm transition active:scale-[0.98]"
+      disabled={disabled}
+      className={`relative ripple w-full text-center px-3 py-2 rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-sm transition active:scale-[0.98] ${
+        disabled ? "opacity-50 cursor-not-allowed" : ""
+      }`}
     >
       {children}
     </button>
