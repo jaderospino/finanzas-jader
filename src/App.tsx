@@ -366,35 +366,6 @@ export default function App() {
     [tags, form.category]
   );
 
-  const handleAdd = () => {
-    if (form.type === "Transferencia") return;
-    const amount = toNumberFromRaw(form.amountRaw);
-    if (!amount) return;
-
-    const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, "0")}:${String(
-      now.getMinutes()
-    ).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-
-    const sign = form.type === "Ingreso" ? +1 : -1;
-
-    const record: Tx = {
-      id: crypto.randomUUID(),
-      type: form.type,
-      account: form.account,
-      toAccount: "",
-      date: form.date,
-      time,
-      amount: Math.abs(amount) * sign,
-      category: form.category,
-      subcategory: form.subcategory,
-      note: form.note,
-    };
-
-    setTx((t) => [record, ...t]);
-    setForm((f) => ({ ...f, amountRaw: "", note: "" }));
-  };
-
   /* -------- Transferencias -------- */
   const [trf, setTrf] = useState<{
     from: Account;
@@ -602,20 +573,17 @@ export default function App() {
   const PAGE_SIZE = 10;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
 
-  // --- INICIO NUEVOS ESTADOS PARA FILTROS ---
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterType, setFilterType] = useState<TxType | "Todos">("Todos");
   const [filterAccount, setFilterAccount] = useState<Account | "Todas">(
     "Todas"
   );
-  // --- FIN NUEVOS ESTADOS PARA FILTROS ---
 
   const filteredSorted = useMemo(() => {
     const q = search.trim().toLowerCase();
 
     const base = tx.filter((t) => {
-      // Filtro por texto de búsqueda (existente)
       const searchMatch =
         !q ||
         t.category.toLowerCase().includes(q) ||
@@ -623,7 +591,6 @@ export default function App() {
         t.account.toLowerCase().includes(q) ||
         (t.note || "").toLowerCase().includes(q);
 
-      // Nuevos filtros
       const dateFromMatch = !filterDateFrom || t.date >= filterDateFrom;
       const dateToMatch = !filterDateTo || t.date <= filterDateTo;
       const typeMatch = filterType === "Todos" || t.type === filterType;
@@ -635,7 +602,6 @@ export default function App() {
       );
     });
 
-    // El código de ordenación no cambia
     base.sort((a, b) => {
       if (sortKey === "fecha") {
         const da = a.date + " " + a.time;
@@ -792,6 +758,85 @@ export default function App() {
     items: Tx[];
   } | null>(null);
 
+  // --- INICIO ESTADO PARA EDITAR TRANSACCIÓN ---
+  const [editingTx, setEditingTx] = useState<Tx | null>(null);
+  // --- FIN ESTADO PARA EDITAR TRANSACCIÓN ---
+
+  // --- INICIO EFECTO PARA RELLENAR FORMULARIO DE EDICIÓN ---
+  useEffect(() => {
+    if (editingTx) {
+      setForm({
+        type: editingTx.type,
+        account: editingTx.account,
+        toAccount: editingTx.toAccount || "",
+        date: editingTx.date,
+        amountRaw: normalizeMoneyInput(String(editingTx.amount)).raw,
+        category: editingTx.category,
+        subcategory: editingTx.subcategory,
+        note: editingTx.note || "",
+      });
+      setTab("capturar"); // Cambia a la pestaña de captura
+      window.scrollTo({ top: 0, behavior: "smooth" }); // Sube al inicio de la página
+    }
+  }, [editingTx]);
+  // --- FIN EFECTO PARA RELLENAR FORMULARIO DE EDICIÓN ---
+
+  const handleSave = () => {
+    const amount = toNumberFromRaw(form.amountRaw);
+    if (!amount) return;
+
+    if (editingTx) {
+      // --- LÓGICA DE ACTUALIZACIÓN ---
+      const updatedTx: Tx = {
+        ...editingTx,
+        type: form.type,
+        account: form.account,
+        date: form.date,
+        amount: form.type === "Ingreso" ? Math.abs(amount) : -Math.abs(amount),
+        category: form.category,
+        subcategory: form.subcategory,
+        note: form.note,
+      };
+
+      setTx(tx.map((t) => (t.id === editingTx.id ? updatedTx : t)));
+      setEditingTx(null); // Limpia el estado de edición
+    } else {
+      // --- LÓGICA DE AÑADIR (la que ya tenías) ---
+      const now = new Date();
+      const time = `${String(now.getHours()).padStart(2, "0")}:${String(
+        now.getMinutes()
+      ).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+
+      const sign = form.type === "Ingreso" ? +1 : -1;
+
+      const record: Tx = {
+        id: crypto.randomUUID(),
+        type: form.type,
+        account: form.account,
+        toAccount: "",
+        date: form.date,
+        time,
+        amount: Math.abs(amount) * sign,
+        category: form.category,
+        subcategory: form.subcategory,
+        note: form.note,
+      };
+      setTx((t) => [record, ...t]);
+    }
+
+    // Limpia el formulario en ambos casos
+    setForm({
+      type: "Ingreso",
+      account: "Banco Davivienda",
+      toAccount: "",
+      date: new Date().toISOString().slice(0, 10),
+      amountRaw: "",
+      category: "Ingresos",
+      subcategory: "Salario",
+      note: "",
+    });
+  };
+
   /* ================================= Render ================================= */
 
   return (
@@ -915,7 +960,9 @@ export default function App() {
         {tab === "capturar" && (
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-5">
             <div className="lg:col-span-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up">
-              <h3 className="font-medium mb-3">Nueva transacción</h3>
+              <h3 className="font-medium mb-3">
+                {editingTx ? "Editando Transacción" : "Nueva Transacción"}
+              </h3>
               <div className="grid grid-cols-1 gap-2 sm:gap-3">
                 <Row>
                   <Select
@@ -983,22 +1030,26 @@ export default function App() {
                 />
 
                 <div className="flex items-center gap-2">
-                  <PrimaryBtn onClick={handleAdd}>＋ Agregar</PrimaryBtn>
+                  <PrimaryBtn onClick={handleSave}>
+                    {editingTx ? "💾 Guardar Cambios" : "＋ Agregar"}
+                  </PrimaryBtn>
                   <GhostBtn
-                    onClick={() =>
+                    onClick={() => {
+                      setEditingTx(null); // Si estamos editando, cancela la edición
                       setForm({
+                        // En cualquier caso, limpia el formulario
                         type: "Ingreso",
                         account: "Banco Davivienda",
-                        toAccount: "" as Account | "",
+                        toAccount: "",
                         date: new Date().toISOString().slice(0, 10),
                         amountRaw: "",
                         category: "Ingresos",
                         subcategory: "Salario",
                         note: "",
-                      })
-                    }
+                      });
+                    }}
                   >
-                    Limpiar
+                    {editingTx ? "Cancelar" : "Limpiar"}
                   </GhostBtn>
                 </div>
               </div>
@@ -1519,7 +1570,14 @@ export default function App() {
                         {fmtCOP(r.amount)}
                       </td>
                       <td className="py-2 px-2">{r.note || "-"}</td>
-                      <td className="py-2 px-2">
+                      <td className="py-2 px-2 flex items-center gap-2">
+                        <button
+                          onClick={() => setEditingTx(r)}
+                          className="text-blue-500 hover:underline"
+                        >
+                          Editar
+                        </button>
+                        <span className="text-slate-300 dark:text-slate-600">|</span>
                         <button
                           onClick={() => deleteOne(r.id)}
                           className="text-rose-500 hover:underline"
