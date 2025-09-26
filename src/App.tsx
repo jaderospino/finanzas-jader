@@ -1,4 +1,4 @@
-+// App.tsx
+// App.tsx
 import React, {
   useEffect,
   useMemo,
@@ -72,7 +72,6 @@ function normalizeMoneyInput(s: string) {
 }
 const toNumberFromRaw = (raw: string) => normalizeMoneyInput(raw).value;
 
-// --- INICIO FUNCIONES DE NOTIFICACIÓN ---
 function requestNotificationPermission() {
     if (!("Notification" in window)) {
         console.log("Este navegador no soporta notificaciones de escritorio.");
@@ -86,8 +85,6 @@ function sendNotification(title: string, options?: NotificationOptions) {
         new Notification(title, options);
     }
 }
-// --- FIN FUNCIONES DE NOTIFICACIÓN ---
-
 
 /* =================================== Tipos ================================= */
 
@@ -241,7 +238,6 @@ export default function App() {
     checkSupabase().then((err) => {
       console.log("Supabase ping:", err?.message || "OK");
     });
-    // Pedimos permiso para notificaciones al cargar la app
     requestNotificationPermission();
   }, []);
 
@@ -827,13 +823,11 @@ export default function App() {
         note: form.note,
       };
       setTx((t) => [record, ...t]);
-      // --- INICIO ENVÍO DE NOTIFICACIÓN ---
       sendNotification("Transacción Guardada", {
           body: `Se ha añadido un ${record.type} de ${fmtCOP(record.amount)} en la cuenta ${record.account}.`,
-          badge: "/badge-icon.png", // Opcional: ícono para la barra de notificaciones
-          icon: "/icon-192x192.png" // Opcional: ícono principal
+          badge: "/badge-icon.png",
+          icon: "/icon-192x192.png"
       });
-      // --- FIN ENVÍO DE NOTIFICACIÓN ---
     }
 
     setForm({
