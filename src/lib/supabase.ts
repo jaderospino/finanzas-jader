@@ -18,7 +18,8 @@ export async function checkSupabase() {
     try {
       const { error } = await supabase.from("settings").select("updated_at").limit(1);
       return error ?? null;
-    } catch (ee: any)      return ee;
+    } catch (ee: any) {
+      return ee; // La llave que faltaba estaba aquí.
     }
   }
 }
