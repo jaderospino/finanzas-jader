@@ -274,7 +274,7 @@ export default function App() {
 
             // Cargar Movimientos
             const cloudTx = await pullTx();
-            if (Array.isArray(cloudTx) && cloudTx.length) {
+            if (Array.isArray(cloudTx)) {
                 const mapped: Tx[] = cloudTx.map((r: any) => ({
                     id: r.id, type: r.type, account: r.account as Account,
                     toAccount: (r.to_account as Account) || "", date: r.date,
@@ -1764,7 +1764,7 @@ export default function App() {
                 subcategory: r.subcategory,
                 note: r.note || "",
               }));
-              if (cloudTx && cloudTx.length > 0) setTx(mapped);
+              setTx(mapped); // <-- BUG FIX IS HERE
               setCloudMsg("Sincronizado ✅");
               setTimeout(() => setCloudMsg(null), 1600);
             } catch (e) {
