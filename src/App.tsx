@@ -31,7 +31,7 @@ import {
   pullTx,
   upsertTxBulk,
   deleteTx as deleteTxCloud,
-  signOut,
+  signOut, // <--- LA COMA FALTABA AQUÍ
   // --- INICIO IMPORTS PARA OBJETIVOS ---
   loadGoals,
   saveGoal,
@@ -105,9 +105,7 @@ type Budget = {
   ahorro: number;
 };
 
-// --- INICIO TIPO PARA OBJETIVOS ---
 type Goal = Omit<GoalRow, "user_id">;
-// --- FIN TIPO PARA OBJETIVOS ---
 
 
 const STORAGE = {
@@ -895,7 +893,6 @@ export default function App() {
       </header>
 
       <main className="mx-auto max-w-screen-xl w-full px-3 sm:px-4 py-4 sm:py-5 space-y-4 sm:space-y-6">
-        {/* ... KPIs y otras secciones ... */}
         <section className="w-full fade-up" style={{ animationDelay: "40ms" }}>
           <div className="flex flex-wrap justify-center gap-3 sm:gap-5 z-0 relative">
             <HeroKpi title="Saldo actual" value={totals.saldoActual} good />
@@ -984,9 +981,6 @@ export default function App() {
           </div>
         </section>
         
-        {/* ... Contenido de las otras pestañas ... */}
-        
-        {/* --- INICIO PESTAÑA OBJETIVOS --- */}
         {tab === "objetivos" && (
             <section className="fade-up">
                 <div className="flex items-center justify-between mb-4">
@@ -1011,9 +1005,7 @@ export default function App() {
                 </div>
             </section>
         )}
-        {/* --- FIN PESTAÑA OBJETIVOS --- */}
 
-        {/* ... Resto del JSX de las pestañas ... */}
         {tab === "capturar" && (
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-5">
             <div className="lg:col-span-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up">
@@ -1092,9 +1084,8 @@ export default function App() {
                   </PrimaryBtn>
                   <GhostBtn
                     onClick={() => {
-                      setEditingTx(null); // Si estamos editando, cancela la edición
+                      setEditingTx(null); 
                       setForm({
-                        // En cualquier caso, limpia el formulario
                         type: "Ingreso",
                         account: "Banco Davivienda",
                         toAccount: "",
@@ -1112,7 +1103,6 @@ export default function App() {
               </div>
             </div>
 
-            {/* Charts */}
             <div className="lg:col-span-8 grid grid-cols-1 xl:grid-cols-2 gap-3 sm:gap-5">
               <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up">
                 <div className="flex items-center justify-between gap-3 mb-3">
@@ -1758,7 +1748,7 @@ export default function App() {
                 subcategory: r.subcategory,
                 note: r.note || "",
               }));
-              setTx(mapped);
+              if (cloudTx && cloudTx.length > 0) setTx(mapped);
               setCloudMsg("Sincronizado ✅");
               setTimeout(() => setCloudMsg(null), 1600);
             } catch (e) {
@@ -1859,7 +1849,68 @@ export default function App() {
 
 /* ============================== Subcomponentes ============================== */
 
-// --- INICIO NUEVOS COMPONENTES PARA OBJETIVOS ---
+function GoalModal({
+  onClose,
+  onSave,
+  existingGoal,
+}: {
+  onClose: () => void;
+  onSave: (goal: Omit<Goal, "created_at" | "user_id">) => void;
+  existingGoal?: Goal;
+}) {
+  const [name, setName] = useState(existingGoal?.name || "");
+  const [targetAmountRaw, setTargetAmountRaw] = useState(
+    normalizeMoneyInput(String(existingGoal?.target_amount || "")).raw
+  );
+  const [targetDate, setTargetDate] = useState(existingGoal?.target_date || "");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const target_amount = toNumberFromRaw(targetAmountRaw);
+    if (!name || !target_amount) {
+      alert("Por favor, completa el nombre y el monto objetivo.");
+      return;
+    }
+    onSave({
+        id: existingGoal?.id || crypto.randomUUID(),
+        name,
+        target_amount,
+        current_amount: existingGoal?.current_amount || 0,
+        target_date: targetDate || null,
+    });
+  };
+
+  return (
+     <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <form onSubmit={handleSubmit}>
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="font-medium">{existingGoal ? "Editar Objetivo" : "Nuevo Objetivo"}</h3>
+            </div>
+            <div className="p-5 space-y-4">
+                <div>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del Objetivo</label>
+                    <input value={name} onChange={e => setName(e.target.value)} required className="mt-1 w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"/>
+                </div>
+                <div>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Monto Objetivo</label>
+                    <MoneyInput value={targetAmountRaw} onChange={setTargetAmountRaw} placeholder="Monto (COP)"/>
+                </div>
+                <div>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Fecha Límite (Opcional)</label>
+                    <input type="date" value={targetDate || ''} onChange={e => setTargetDate(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"/>
+                </div>
+            </div>
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+                <GhostBtn type="button" onClick={onClose}>Cancelar</GhostBtn>
+                <PrimaryBtn type="submit">Guardar Objetivo</PrimaryBtn>
+            </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+
 function ProgressBar({
   value,
   max,
@@ -1924,68 +1975,6 @@ function GoalCard({
   );
 }
 
-function GoalModal({
-  onClose,
-  onSave,
-  existingGoal,
-}: {
-  onClose: () => void;
-  onSave: (goal: Omit<Goal, "created_at" | "user_id">) => void;
-  existingGoal?: Goal;
-}) {
-  const [name, setName] = useState(existingGoal?.name || "");
-  const [targetAmountRaw, setTargetAmountRaw] = useState(
-    normalizeMoneyInput(String(existingGoal?.target_amount || "")).raw
-  );
-  const [targetDate, setTargetDate] = useState(existingGoal?.target_date || "");
-
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
-    const target_amount = toNumberFromRaw(targetAmountRaw);
-    if (!name || !target_amount) {
-      alert("Por favor, completa el nombre y el monto objetivo.");
-      return;
-    }
-    onSave({
-        id: existingGoal?.id || crypto.randomUUID(),
-        name,
-        target_amount,
-        current_amount: existingGoal?.current_amount || 0,
-        target_date: targetDate || null,
-    });
-  };
-
-  return (
-     <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={onClose}>
-      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl" onClick={(e) => e.stopPropagation()}>
-        <form onSubmit={handleSubmit}>
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="font-medium">{existingGoal ? "Editar Objetivo" : "Nuevo Objetivo"}</h3>
-            </div>
-            <div className="p-5 space-y-4">
-                <div>
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del Objetivo</label>
-                    <input value={name} onChange={e => setName(e.target.value)} required className="mt-1 w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"/>
-                </div>
-                <div>
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Monto Objetivo</label>
-                    <MoneyInput value={targetAmountRaw} onChange={setTargetAmountRaw} placeholder="Monto (COP)"/>
-                </div>
-                <div>
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Fecha Límite (Opcional)</label>
-                    <input type="date" value={targetDate || ''} onChange={e => setTargetDate(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"/>
-                </div>
-            </div>
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
-                <GhostBtn type="button" onClick={onClose}>Cancelar</GhostBtn>
-                <PrimaryBtn type="submit">Guardar Objetivo</PrimaryBtn>
-            </div>
-        </form>
-      </div>
-    </div>
-  )
-}
-// --- FIN NUEVOS COMPONENTES PARA OBJETIVOS ---
 
 function SettingsModal({
   open,
