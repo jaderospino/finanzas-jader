@@ -1,4 +1,4 @@
-// App.tsx
++// App.tsx
 import React, {
   useEffect,
   useMemo,
@@ -31,13 +31,11 @@ import {
   pullTx,
   upsertTxBulk,
   deleteTx as deleteTxCloud,
-  signOut, // <--- LA COMA FALTABA AQUÍ
-  // --- INICIO IMPORTS PARA OBJETIVOS ---
+  signOut,
   loadGoals,
   saveGoal,
   deleteGoal,
   GoalRow,
-  // --- FIN IMPORTS PARA OBJETIVOS ---
 } from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
@@ -73,6 +71,23 @@ function normalizeMoneyInput(s: string) {
   return { raw: `${sign}${withDots},${dec}`, value: num };
 }
 const toNumberFromRaw = (raw: string) => normalizeMoneyInput(raw).value;
+
+// --- INICIO FUNCIONES DE NOTIFICACIÓN ---
+function requestNotificationPermission() {
+    if (!("Notification" in window)) {
+        console.log("Este navegador no soporta notificaciones de escritorio.");
+    } else if (Notification.permission === "default") {
+        Notification.requestPermission();
+    }
+}
+
+function sendNotification(title: string, options?: NotificationOptions) {
+    if (Notification.permission === "granted") {
+        new Notification(title, options);
+    }
+}
+// --- FIN FUNCIONES DE NOTIFICACIÓN ---
+
 
 /* =================================== Tipos ================================= */
 
@@ -221,11 +236,13 @@ export default function App() {
   const [showGoalModal, setShowGoalModal] = useState<boolean | Goal>(false);
 
 
-  // Ping a Supabase (solo prueba de conexión)
+  // Ping a Supabase y pedir permiso de notificaciones
   useEffect(() => {
     checkSupabase().then((err) => {
       console.log("Supabase ping:", err?.message || "OK");
     });
+    // Pedimos permiso para notificaciones al cargar la app
+    requestNotificationPermission();
   }, []);
 
   // Obtener usuario al cargar
@@ -810,6 +827,13 @@ export default function App() {
         note: form.note,
       };
       setTx((t) => [record, ...t]);
+      // --- INICIO ENVÍO DE NOTIFICACIÓN ---
+      sendNotification("Transacción Guardada", {
+          body: `Se ha añadido un ${record.type} de ${fmtCOP(record.amount)} en la cuenta ${record.account}.`,
+          badge: "/badge-icon.png", // Opcional: ícono para la barra de notificaciones
+          icon: "/icon-192x192.png" // Opcional: ícono principal
+      });
+      // --- FIN ENVÍO DE NOTIFICACIÓN ---
     }
 
     setForm({
@@ -824,7 +848,6 @@ export default function App() {
     });
   };
 
-  // --- INICIO LÓGICA PARA OBJETIVOS ---
   const handleSaveGoal = async (goalData: Omit<Goal, "created_at" | "user_id">) => {
     try {
         setCloudBusy(true);
@@ -859,7 +882,6 @@ export default function App() {
         setCloudBusy(false);
     }
   };
-  // --- FIN LÓGICA PARA OBJETIVOS ---
 
 
   /* ================================= Render ================================= */
