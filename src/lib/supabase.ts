@@ -18,8 +18,7 @@ export async function checkSupabase() {
     try {
       const { error } = await supabase.from("settings").select("updated_at").limit(1);
       return error ?? null;
-    } catch (ee: any) {
-      return ee;
+    } catch (ee: any)      return ee;
     }
   }
 }
@@ -46,7 +45,6 @@ export async function signOut() {
 }
 
 /* =============================== SETTINGS ============================== */
-/** Guardamos etiquetas (tags) y presupuesto (budget) en una sola tabla "settings" */
 
 export type SettingsRow = {
   user_id: string;
@@ -86,7 +84,6 @@ export async function saveSettings(payload: {
 }
 
 /* ============================== MOVIMIENTOS ============================== */
-/** Tabla principal: movements */
 
 export type TxRow = {
   id: string;
@@ -94,8 +91,8 @@ export type TxRow = {
   type: "Ingreso" | "Gasto" | "Transferencia";
   account: string;
   to_account: string | null;
-  date: string; // YYYY-MM-DD
-  time: string; // HH:mm:ss
+  date: string;
+  time: string;
   amount: number;
   category: string;
   subcategory: string;
@@ -135,4 +132,67 @@ export async function deleteTx(ids: string[]) {
   if (!user || !ids.length) return;
   const { error } = await supabase.from("movements").delete().in("id", ids).eq("user_id", user.id);
   if (error) throw error;
+}
+
+/* ================================ GOALS ================================ */
+
+export type GoalRow = {
+    id: string;
+    user_id: string;
+    name: string;
+    target_amount: number;
+    current_amount: number;
+    target_date: string | null;
+    created_at?: string | null;
+};
+
+export async function loadGoals(): Promise<GoalRow[]> {
+    const user = await getUser();
+    if (!user) return [];
+    const { data, error } = await supabase
+        .from("goals")
+        .select("*")
+        .eq("user_id", user.id)
+        .order("created_at", { ascending: false });
+    if (error) throw error;
+    return data ?? [];
+}
+
+export async function saveGoal(goal: Omit<GoalRow, "user_id" | "created_at">) {
+    const user = await getUser();
+    if (!user) throw new Error("No hay sesión. Inicia sesión primero.");
+    const payload = { ...goal, user_id: user.id };
+    const { error } = await supabase.from("goals").upsert(payload, { onConflict: "id" });
+    if (error) throw error;
+}
+
+export async function deleteGoal(id: string) {
+    const user = await getUser();
+    if (!user) return;
+    const { error } = await supabase.from("goals").delete().eq("id", id).eq("user_id", user.id);
+    if (error) throw error;
+}
+
+export async function addContributionToGoal(id: string, newContribution: number) {
+    const user = await getUser();
+    if (!user) throw new Error("No hay sesión. Inicia sesión primero.");
+
+    const { data: currentGoal, error: fetchError } = await supabase
+        .from("goals")
+        .select("current_amount")
+        .eq("id", id)
+        .eq("user_id", user.id)
+        .single();
+
+    if (fetchError) throw fetchError;
+    if (!currentGoal) throw new Error("Objetivo no encontrado.");
+
+    const newTotal = currentGoal.current_amount + newContribution;
+
+    const { error: updateError } = await supabase
+        .from("goals")
+        .update({ current_amount: newTotal })
+        .eq("id", id);
+        
+    if (updateError) throw updateError;
 }
