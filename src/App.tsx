@@ -32,6 +32,12 @@ import {
   upsertTxBulk,
   deleteTx as deleteTxCloud,
   signOut,
+  // --- INICIO IMPORTS PARA OBJETIVOS ---
+  loadGoals,
+  saveGoal,
+  deleteGoal,
+  GoalRow,
+  // --- FIN IMPORTS PARA OBJETIVOS ---
 } from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
@@ -98,6 +104,11 @@ type Budget = {
   deseos: number;
   ahorro: number;
 };
+
+// --- INICIO TIPO PARA OBJETIVOS ---
+type Goal = Omit<GoalRow, "user_id">;
+// --- FIN TIPO PARA OBJETIVOS ---
+
 
 const STORAGE = {
   TX: "fj_tx_v2",
@@ -209,6 +220,8 @@ export default function App() {
   // Modales
   const [showTags, setShowTags] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
+  const [showGoalModal, setShowGoalModal] = useState<boolean | Goal>(false);
+
 
   // Ping a Supabase (solo prueba de conexión)
   useEffect(() => {
@@ -235,65 +248,48 @@ export default function App() {
     localStorage.setItem(STORAGE.THEME, dark ? "dark" : "light");
   }, [dark]);
 
-  /* Cargar ajustes (tags + budget) desde Supabase al montar */
+  /* Cargar datos de la nube al montar */
   useEffect(() => {
-    let mounted = true;
-    (async () => {
-      try {
-        const u = await getUser();
-        if (!u) return; // sin sesión, no intenta nube
-        setCloudBusy(true);
-        const s = await loadSettings(); // { tags, budget }
-        if (!mounted) return;
-
-        if (s?.tags && Object.keys(s.tags).length > 0) setTags(s.tags);
-        if (s?.budget) setBudget(s.budget);
-
-        setCloudMsg("Ajustes cargados desde la nube");
-        setTimeout(() => setCloudMsg(null), 2000);
-      } catch {
-        setCloudMsg("No se pudo cargar ajustes (se usará local)");
-        setTimeout(() => setCloudMsg(null), 2500);
-      } finally {
-        setCloudBusy(false);
-      }
-    })();
-    return () => {
-      mounted = false;
-    };
-  }, []);
-
-  /* Cargar movimientos (tx) desde la nube al montar si hay sesión */
-  useEffect(() => {
-    (async () => {
-      try {
+    const loadCloudData = async () => {
         const u = await getUser();
         if (!u) return;
-        const cloudTx = await pullTx();
-        if (Array.isArray(cloudTx) && cloudTx.length) {
-          const mapped: Tx[] = cloudTx.map((r: any) => ({
-            id: r.id,
-            type: r.type,
-            account: r.account as Account,
-            toAccount: (r.to_account as Account) || "",
-            date: r.date,
-            time: r.time,
-            amount: Number(r.amount),
-            category: r.category,
-            subcategory: r.subcategory,
-            note: r.note || "",
-          }));
-          setTx(mapped);
-          setCloudMsg("Movimientos cargados desde la nube");
-          setTimeout(() => setCloudMsg(null), 1800);
+
+        setCloudBusy(true);
+        try {
+            // Cargar Ajustes
+            const s = await loadSettings();
+            if (s?.tags && Object.keys(s.tags).length > 0) setTags(s.tags);
+            if (s?.budget) setBudget(s.budget);
+
+            // Cargar Movimientos
+            const cloudTx = await pullTx();
+            if (Array.isArray(cloudTx) && cloudTx.length) {
+                const mapped: Tx[] = cloudTx.map((r: any) => ({
+                    id: r.id, type: r.type, account: r.account as Account,
+                    toAccount: (r.to_account as Account) || "", date: r.date,
+                    time: r.time, amount: Number(r.amount), category: r.category,
+                    subcategory: r.subcategory, note: r.note || "",
+                }));
+                setTx(mapped);
+            }
+            
+            // Cargar Objetivos
+            const cloudGoals = await loadGoals();
+            setGoals(cloudGoals);
+
+            setCloudMsg("Datos cargados desde la nube");
+            setTimeout(() => setCloudMsg(null), 2000);
+        } catch (e) {
+            console.error(e);
+            setCloudMsg("No se pudieron cargar los datos (se usará local)");
+            setTimeout(() => setCloudMsg(null), 2500);
+        } finally {
+            setCloudBusy(false);
         }
-      } catch (e) {
-        console.error(e);
-        setCloudMsg("No se pudieron cargar movimientos");
-        setTimeout(() => setCloudMsg(null), 2000);
-      }
-    })();
+    };
+    loadCloudData();
   }, []);
+  
 
   /* Estado base */
   const [month, setMonth] = useState<string>(() => {
@@ -326,6 +322,7 @@ export default function App() {
       return { basicos: 0, deseos: 0, ahorro: 0 };
     }
   });
+  const [goals, setGoals] = useState<Goal[]>([]);
 
   // Persistencia local
   useEffect(() => localStorage.setItem(STORAGE.TX, JSON.stringify(tx)), [tx]);
@@ -426,6 +423,7 @@ export default function App() {
       setTx([]);
       setTags(defaultTags);
       setBudget({ basicos: 0, deseos: 0, ahorro: 0 });
+      setGoals([]);
       setShowSettings(false);
     } catch (error) {
       console.error("Error al cerrar sesión", error);
@@ -564,7 +562,7 @@ export default function App() {
   /* ============================ Tabla & acciones ============================ */
 
   const [tab, setTab] = useState<
-    "capturar" | "transferir" | "presupuesto" | "calendario" | "tabla"
+    "capturar" | "transferir" | "presupuesto" | "calendario" | "tabla" | "objetivos"
   >("capturar");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<"fecha" | "cuenta">("fecha");
@@ -572,7 +570,6 @@ export default function App() {
   const [page, setPage] = useState(1);
   const PAGE_SIZE = 10;
   const [selectedIds, setSelectedIds] = useState<Set<string>>(new Set());
-
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterType, setFilterType] = useState<TxType | "Todos">("Todos");
@@ -751,18 +748,14 @@ export default function App() {
     return cells;
   }, [tx, month]);
 
-  /* ========= Estado del modal de día ========= */
+  /* ========= Estados y Lógica de Modales ========= */
 
   const [dayModal, setDayModal] = useState<{
     date: string;
     items: Tx[];
   } | null>(null);
-
-  // --- INICIO ESTADO PARA EDITAR TRANSACCIÓN ---
   const [editingTx, setEditingTx] = useState<Tx | null>(null);
-  // --- FIN ESTADO PARA EDITAR TRANSACCIÓN ---
 
-  // --- INICIO EFECTO PARA RELLENAR FORMULARIO DE EDICIÓN ---
   useEffect(() => {
     if (editingTx) {
       setForm({
@@ -775,18 +768,16 @@ export default function App() {
         subcategory: editingTx.subcategory,
         note: editingTx.note || "",
       });
-      setTab("capturar"); // Cambia a la pestaña de captura
-      window.scrollTo({ top: 0, behavior: "smooth" }); // Sube al inicio de la página
+      setTab("capturar");
+      window.scrollTo({ top: 0, behavior: "smooth" });
     }
   }, [editingTx]);
-  // --- FIN EFECTO PARA RELLENAR FORMULARIO DE EDICIÓN ---
 
   const handleSave = () => {
     const amount = toNumberFromRaw(form.amountRaw);
     if (!amount) return;
 
     if (editingTx) {
-      // --- LÓGICA DE ACTUALIZACIÓN ---
       const updatedTx: Tx = {
         ...editingTx,
         type: form.type,
@@ -799,9 +790,8 @@ export default function App() {
       };
 
       setTx(tx.map((t) => (t.id === editingTx.id ? updatedTx : t)));
-      setEditingTx(null); // Limpia el estado de edición
+      setEditingTx(null);
     } else {
-      // --- LÓGICA DE AÑADIR (la que ya tenías) ---
       const now = new Date();
       const time = `${String(now.getHours()).padStart(2, "0")}:${String(
         now.getMinutes()
@@ -824,7 +814,6 @@ export default function App() {
       setTx((t) => [record, ...t]);
     }
 
-    // Limpia el formulario en ambos casos
     setForm({
       type: "Ingreso",
       account: "Banco Davivienda",
@@ -837,14 +826,50 @@ export default function App() {
     });
   };
 
+  // --- INICIO LÓGICA PARA OBJETIVOS ---
+  const handleSaveGoal = async (goalData: Omit<Goal, "created_at" | "user_id">) => {
+    try {
+        setCloudBusy(true);
+        await saveGoal(goalData);
+        const updatedGoals = await loadGoals();
+        setGoals(updatedGoals);
+        setCloudMsg("Objetivo guardado ✅");
+        setTimeout(() => setCloudMsg(null), 2000);
+    } catch (e) {
+        console.error(e);
+        setCloudMsg("Error al guardar objetivo");
+        setTimeout(() => setCloudMsg(null), 2000);
+    } finally {
+        setCloudBusy(false);
+        setShowGoalModal(false);
+    }
+  };
+
+  const handleDeleteGoal = async (id: string) => {
+    if (!confirm("¿Estás seguro de que quieres eliminar este objetivo?")) return;
+    try {
+        setCloudBusy(true);
+        await deleteGoal(id);
+        setGoals(goals.filter(g => g.id !== id));
+        setCloudMsg("Objetivo eliminado");
+        setTimeout(() => setCloudMsg(null), 2000);
+    } catch (e) {
+        console.error(e);
+        setCloudMsg("Error al eliminar objetivo");
+        setTimeout(() => setCloudMsg(null), 2000);
+    } finally {
+        setCloudBusy(false);
+    }
+  };
+  // --- FIN LÓGICA PARA OBJETIVOS ---
+
+
   /* ================================= Render ================================= */
 
   return (
     <div className="w-full min-h-screen bg-slate-50 text-slate-800 dark:bg-slate-900 dark:text-slate-100">
-      {/* estilos globales */}
       <DesignStyles />
 
-      {/* Header */}
       <header className="sticky top-0 z-50 bg-white/80 dark:bg-slate-950/70 backdrop-blur-md border-b border-slate-200 dark:border-slate-800">
         <div className="w-full px-3 sm:px-4 py-2 sm:py-3 flex flex-wrap items-center gap-2 sm:gap-3 justify-between">
           <div className="flex items-center gap-3">
@@ -869,9 +894,8 @@ export default function App() {
         </div>
       </header>
 
-      {/* Contenido */}
       <main className="mx-auto max-w-screen-xl w-full px-3 sm:px-4 py-4 sm:py-5 space-y-4 sm:space-y-6">
-        {/* KPIs */}
+        {/* ... KPIs y otras secciones ... */}
         <section className="w-full fade-up" style={{ animationDelay: "40ms" }}>
           <div className="flex flex-wrap justify-center gap-3 sm:gap-5 z-0 relative">
             <HeroKpi title="Saldo actual" value={totals.saldoActual} good />
@@ -906,8 +930,7 @@ export default function App() {
             />
           </div>
         </section>
-
-        {/* Tabs */}
+        
         <section
           className="hidden sm:flex flex-wrap items-center gap-2 fade-up"
           style={{ animationDelay: "80ms" }}
@@ -926,6 +949,11 @@ export default function App() {
             active={tab === "presupuesto"}
             onClick={() => setTab("presupuesto")}
             txt="Presupuesto"
+          />
+          <TabButton
+            active={tab === "objetivos"}
+            onClick={() => setTab("objetivos")}
+            txt="Objetivos"
           />
           <TabButton
             active={tab === "calendario"}
@@ -955,8 +983,37 @@ export default function App() {
             </select>
           </div>
         </section>
+        
+        {/* ... Contenido de las otras pestañas ... */}
+        
+        {/* --- INICIO PESTAÑA OBJETIVOS --- */}
+        {tab === "objetivos" && (
+            <section className="fade-up">
+                <div className="flex items-center justify-between mb-4">
+                    <h2 className="text-xl font-semibold">Objetivos de Ahorro</h2>
+                    <PrimaryBtn onClick={() => setShowGoalModal(true)}>+ Nuevo Objetivo</PrimaryBtn>
+                </div>
+                {goals.length === 0 && (
+                    <div className="text-center py-12 px-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                        <p className="text-slate-500 dark:text-slate-400">Aún no tienes objetivos de ahorro.</p>
+                        <p className="text-slate-500 dark:text-slate-400 mt-1">¡Crea tu primer objetivo para empezar a ahorrar!</p>
+                    </div>
+                )}
+                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+                    {goals.map(goal => (
+                        <GoalCard 
+                            key={goal.id} 
+                            goal={goal} 
+                            onEdit={() => setShowGoalModal(goal)}
+                            onDelete={() => handleDeleteGoal(goal.id)}
+                        />
+                    ))}
+                </div>
+            </section>
+        )}
+        {/* --- FIN PESTAÑA OBJETIVOS --- */}
 
-        {/* CAPTURAR */}
+        {/* ... Resto del JSX de las pestañas ... */}
         {tab === "capturar" && (
           <section className="grid grid-cols-1 lg:grid-cols-12 gap-3 sm:gap-5">
             <div className="lg:col-span-4 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up">
@@ -1244,8 +1301,7 @@ export default function App() {
             </div>
           </section>
         )}
-
-        {/* TRANSFERIR */}
+        
         {tab === "transferir" && (
           <section className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up">
             <h3 className="font-medium mb-4">Transferencia entre cuentas</h3>
@@ -1282,7 +1338,6 @@ export default function App() {
           </section>
         )}
 
-        {/* PRESUPUESTO */}
         {tab === "presupuesto" && (
           <section className="grid grid-cols-1 lg:grid-cols-2 gap-5">
             <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up">
@@ -1362,7 +1417,6 @@ export default function App() {
           </section>
         )}
 
-        {/* CALENDARIO */}
         {tab === "calendario" && (
           <section className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4">
             <div className="flex items-center justify-between mb-3">
@@ -1440,7 +1494,6 @@ export default function App() {
           </section>
         )}
 
-        {/* TABLA */}
         {tab === "tabla" && (
           <section className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up">
             <div className="flex flex-wrap items-center gap-2 sm:gap-4 mb-3 p-3 bg-slate-50 dark:bg-slate-900 rounded-lg border dark:border-slate-700">
@@ -1618,7 +1671,7 @@ export default function App() {
         )}
       </main>
 
-      {/* Modal etiquetas */}
+      {/* --- INICIO MODALES --- */}
       {showTags && (
         <TagsModal
           tags={tags}
@@ -1627,12 +1680,18 @@ export default function App() {
         />
       )}
 
-      {/* Modal detalle de día */}
       {dayModal && (
         <DayModal data={dayModal} onClose={() => setDayModal(null)} />
       )}
+      
+      {showGoalModal && (
+        <GoalModal
+            onClose={() => setShowGoalModal(false)}
+            onSave={handleSaveGoal}
+            existingGoal={typeof showGoalModal === 'object' ? showGoalModal : undefined}
+        />
+      )}
 
-      {/* Modal de Configuración */}
       {showSettings && (
         <SettingsModal
           open={showSettings}
@@ -1699,7 +1758,7 @@ export default function App() {
                 subcategory: r.subcategory,
                 note: r.note || "",
               }));
-              if (mapped.length) setTx(mapped);
+              setTx(mapped);
               setCloudMsg("Sincronizado ✅");
               setTimeout(() => setCloudMsg(null), 1600);
             } catch (e) {
@@ -1749,14 +1808,12 @@ export default function App() {
         />
       )}
 
-      {/* Toast de nube */}
       {cloudMsg && (
         <div className="fixed bottom-4 right-4 px-3 py-2 rounded-md bg-slate-900 text-white text-sm shadow animate-pulse">
           {cloudMsg}
         </div>
       )}
-
-      {/* Navegación móvil */}
+      
       <nav className="fixed z-40 bottom-3 left-1/2 -translate-x-1/2 sm:hidden">
         <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-700 rounded-full px-2 py-1 flex gap-1">
           <TabButton
@@ -1773,6 +1830,11 @@ export default function App() {
             active={tab === "presupuesto"}
             onClick={() => setTab("presupuesto")}
             txt="Presupuesto"
+          />
+          <TabButton
+            active={tab === "objetivos"}
+            onClick={() => setTab("objetivos")}
+            txt="Objetivos"
           />
           <TabButton
             active={tab === "calendario"}
@@ -1796,6 +1858,134 @@ export default function App() {
 }
 
 /* ============================== Subcomponentes ============================== */
+
+// --- INICIO NUEVOS COMPONENTES PARA OBJETIVOS ---
+function ProgressBar({
+  value,
+  max,
+}: {
+  value: number;
+  max: number;
+}) {
+  const percent = max > 0 ? (value / max) * 100 : 0;
+  return (
+    <div className="w-full bg-slate-200 dark:bg-slate-700 rounded-full h-2.5">
+      <div
+        className="bg-blue-600 h-2.5 rounded-full transition-all duration-500"
+        style={{ width: `${Math.min(percent, 100)}%` }}
+      ></div>
+    </div>
+  );
+}
+
+function GoalCard({
+  goal,
+  onEdit,
+  onDelete,
+}: {
+  goal: Goal;
+  onEdit: () => void;
+  onDelete: () => void;
+}) {
+  const progress =
+    goal.target_amount > 0 ? (goal.current_amount / goal.target_amount) * 100 : 0;
+
+  return (
+    <div className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-4 flex flex-col gap-3">
+      <div className="flex justify-between items-start">
+        <div>
+          <h4 className="font-semibold">{goal.name}</h4>
+          {goal.target_date && (
+            <p className="text-xs text-slate-500">
+              Fecha Límite: {goal.target_date}
+            </p>
+          )}
+        </div>
+        <div className="flex gap-2">
+            <button onClick={onEdit} className="text-xs hover:underline text-slate-500">Editar</button>
+            <button onClick={onDelete} className="text-xs hover:underline text-rose-500">Eliminar</button>
+        </div>
+      </div>
+      <div>
+        <div className="flex justify-between text-sm mb-1">
+          <span className="font-medium text-blue-600 dark:text-blue-400">
+            {fmtCOP(goal.current_amount)}
+          </span>
+          <span className="text-slate-500">
+            {fmtCOP(goal.target_amount)}
+          </span>
+        </div>
+        <ProgressBar value={goal.current_amount} max={goal.target_amount} />
+        <div className="text-right text-xs mt-1 font-medium text-slate-600 dark:text-slate-300">
+          {progress.toFixed(1)}%
+        </div>
+      </div>
+    </div>
+  );
+}
+
+function GoalModal({
+  onClose,
+  onSave,
+  existingGoal,
+}: {
+  onClose: () => void;
+  onSave: (goal: Omit<Goal, "created_at" | "user_id">) => void;
+  existingGoal?: Goal;
+}) {
+  const [name, setName] = useState(existingGoal?.name || "");
+  const [targetAmountRaw, setTargetAmountRaw] = useState(
+    normalizeMoneyInput(String(existingGoal?.target_amount || "")).raw
+  );
+  const [targetDate, setTargetDate] = useState(existingGoal?.target_date || "");
+
+  const handleSubmit = (e: React.FormEvent) => {
+    e.preventDefault();
+    const target_amount = toNumberFromRaw(targetAmountRaw);
+    if (!name || !target_amount) {
+      alert("Por favor, completa el nombre y el monto objetivo.");
+      return;
+    }
+    onSave({
+        id: existingGoal?.id || crypto.randomUUID(),
+        name,
+        target_amount,
+        current_amount: existingGoal?.current_amount || 0,
+        target_date: targetDate || null,
+    });
+  };
+
+  return (
+     <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={onClose}>
+      <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl" onClick={(e) => e.stopPropagation()}>
+        <form onSubmit={handleSubmit}>
+            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+                <h3 className="font-medium">{existingGoal ? "Editar Objetivo" : "Nuevo Objetivo"}</h3>
+            </div>
+            <div className="p-5 space-y-4">
+                <div>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del Objetivo</label>
+                    <input value={name} onChange={e => setName(e.target.value)} required className="mt-1 w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"/>
+                </div>
+                <div>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Monto Objetivo</label>
+                    <MoneyInput value={targetAmountRaw} onChange={setTargetAmountRaw} placeholder="Monto (COP)"/>
+                </div>
+                <div>
+                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Fecha Límite (Opcional)</label>
+                    <input type="date" value={targetDate || ''} onChange={e => setTargetDate(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"/>
+                </div>
+            </div>
+            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+                <GhostBtn type="button" onClick={onClose}>Cancelar</GhostBtn>
+                <PrimaryBtn type="submit">Guardar Objetivo</PrimaryBtn>
+            </div>
+        </form>
+      </div>
+    </div>
+  )
+}
+// --- FIN NUEVOS COMPONENTES PARA OBJETIVOS ---
 
 function SettingsModal({
   open,
@@ -2196,9 +2386,11 @@ function BudgetRow({
 function PrimaryBtn({
   children,
   onClick,
+  type = "button"
 }: {
   children: React.ReactNode;
   onClick?: () => void;
+  type?: "button" | "submit" | "reset";
 }) {
   const { ref, onMouseDown } = useRipple();
   return (
@@ -2206,6 +2398,7 @@ function PrimaryBtn({
       ref={ref}
       onMouseDown={onMouseDown}
       onClick={onClick}
+      type={type}
       className="relative ripple px-4 py-2 rounded-lg bg-slate-900 text-white hover:bg-slate-800 text-sm transition active:scale-[0.98]"
     >
       {children}
@@ -2217,10 +2410,12 @@ function GhostBtn({
   children,
   onClick,
   className = "",
+  type = "button"
 }: {
   children: React.ReactNode;
   onClick?: () => void;
   className?: string;
+  type?: "button" | "submit" | "reset";
 }) {
   const { ref, onMouseDown } = useRipple();
   return (
@@ -2228,6 +2423,7 @@ function GhostBtn({
       ref={ref}
       onMouseDown={onMouseDown}
       onClick={onClick}
+      type={type}
       className={`relative ripple px-4 py-2 rounded-lg border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 text-sm transition active:scale-[0.98] ${className}`}
     >
       {children}
