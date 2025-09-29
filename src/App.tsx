@@ -628,10 +628,10 @@ export default function App() {
       }
     });
     // --- ESTA LÍNEA ES LA MÁS IMPORTANTE ---
-  console.log("Filtrando:", { 
-    totalAntes: tx.length, 
-    totalDespues: base.length 
-    });
+  console.log("Transacciones antes de filtrar:", tx);
+  console.log("Filtros aplicados:", { filterType, filterAccount, filterDateFrom, filterDateTo });
+  console.log("Transacciones después de filtrar:", base);
+
     return base;
   }, [
     tx,
