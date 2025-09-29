@@ -1764,7 +1764,7 @@ export default function App() {
                 subcategory: r.subcategory,
                 note: r.note || "",
               }));
-              setTx(mapped); // <-- BUG FIX IS HERE
+              setTx(mapped);
               setCloudMsg("Sincronizado ✅");
               setTimeout(() => setCloudMsg(null), 1600);
             } catch (e) {
