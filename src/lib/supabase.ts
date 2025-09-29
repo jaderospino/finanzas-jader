@@ -19,7 +19,7 @@ export async function checkSupabase() {
       const { error } = await supabase.from("settings").select("updated_at").limit(1);
       return error ?? null;
     } catch (ee: any) {
-      return ee; // La llave que faltaba estaba aquí.
+      return ee;
     }
   }
 }
@@ -197,6 +197,8 @@ export async function addContributionToGoal(id: string, newContribution: number)
         
     if (updateError) throw updateError;
 }
+
+/* ================================ DEBTS ================================ */
 /** Tabla de Deudas a Pagar */
 
 export type DebtRow = {

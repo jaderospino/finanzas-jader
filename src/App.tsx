@@ -36,9 +36,9 @@ import {
   saveGoal,
   deleteGoal,
   GoalRow,
-  loadDebts,
-  saveDebt,
-  deleteDebt,
+  loadDebts, 
+  saveDebt,   
+  deleteDebt, 
 } from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
