@@ -1,4 +1,4 @@
-// App.tsx - VERSIÓN CON CORRECCIÓN DE CARGA DE DATOS
+// App.tsx - VERSIÓN CON CORRECCIÓN DEFINITIVA DE CARGA
 import React, {
   useEffect,
   useMemo,
@@ -36,9 +36,9 @@ import {
   saveGoal,
   deleteGoal,
   GoalRow,
-  loadDebts, // Preparando para futura función de Deudas
-  saveDebt,   // Preparando para futura función de Deudas
-  deleteDebt, // Preparando para futura función de Deudas
+  loadDebts,
+  saveDebt,
+  deleteDebt,
 } from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
@@ -627,11 +627,6 @@ export default function App() {
         return sortDir === "Asc" ? cmp : -cmp;
       }
     });
-    // --- ESTA LÍNEA ES LA MÁS IMPORTANTE ---
-  console.log("Transacciones antes de filtrar:", tx);
-  console.log("Filtros aplicados:", { filterType, filterAccount, filterDateFrom, filterDateTo });
-  console.log("Transacciones después de filtrar:", base);
-
     return base;
   }, [
     tx,
