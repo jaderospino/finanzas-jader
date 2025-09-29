@@ -627,6 +627,11 @@ export default function App() {
         return sortDir === "Asc" ? cmp : -cmp;
       }
     });
+    // --- ESTA LÍNEA ES LA MÁS IMPORTANTE ---
+  console.log("Filtrando:", { 
+    totalAntes: tx.length, 
+    totalDespues: base.length 
+    });
     return base;
   }, [
     tx,
