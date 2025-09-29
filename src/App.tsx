@@ -1,4 +1,4 @@
-// App.tsx - VERSIÓN CON CORRECCIÓN DEFINITIVA DE CARGA
+// App.tsx - VERSIÓN ESTABLE
 import React, {
   useEffect,
   useMemo,
@@ -36,9 +36,6 @@ import {
   saveGoal,
   deleteGoal,
   GoalRow,
-  loadDebts, 
-  saveDebt,   
-  deleteDebt, 
 } from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
@@ -277,10 +274,7 @@ export default function App() {
 
             // Cargar Movimientos
             const cloudTx = await pullTx();
-            // ----- INICIO CORRECCIÓN DE BUG -----
-            // Se comprueba que sea un array, pero se actualiza incluso si está vacío.
             if (Array.isArray(cloudTx)) {
-            // ----- FIN CORRECCIÓN DE BUG -----
                 const mapped: Tx[] = cloudTx.map((r: any) => ({
                     id: r.id, type: r.type, account: r.account as Account,
                     toAccount: (r.to_account as Account) || "", date: r.date,
