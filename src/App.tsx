@@ -1,4 +1,4 @@
-// App.tsx - VERSIÓN ESTABLE
+// App.tsx - VERSIÓN CON FILTRO ROBUSTO
 import React, {
   useEffect,
   useMemo,
@@ -36,6 +36,9 @@ import {
   saveGoal,
   deleteGoal,
   GoalRow,
+  loadDebts,
+  saveDebt,
+  deleteDebt,
 } from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
@@ -263,7 +266,14 @@ export default function App() {
   useEffect(() => {
     const loadCloudData = async () => {
         const u = await getUser();
-        if (!u) return;
+        if (!u) {
+            // Si no hay usuario, limpiar los datos locales para evitar inconsistencias
+            setTx([]);
+            setGoals([]);
+            setTags(defaultTags);
+            setBudget({ basicos: 0, deseos: 0, ahorro: 0 });
+            return;
+        };
 
         setCloudBusy(true);
         try {
@@ -299,7 +309,7 @@ export default function App() {
         }
     };
     loadCloudData();
-  }, []);
+  }, [userEmail]); // Recargar datos si el usuario cambia (login/logout)
   
 
   /* Estado base */
@@ -588,50 +598,55 @@ export default function App() {
     "Todas"
   );
 
+  // ----- INICIO LÓGICA DE FILTRADO CORREGIDA -----
   const filteredSorted = useMemo(() => {
-    const q = search.trim().toLowerCase();
+    let items = [...tx];
 
-    const base = tx.filter((t) => {
-      const searchMatch =
-        !q ||
-        t.category.toLowerCase().includes(q) ||
-        t.subcategory.toLowerCase().includes(q) ||
-        t.account.toLowerCase().includes(q) ||
-        (t.note || "").toLowerCase().includes(q);
+    // 1. Filtrar por texto
+    if (search) {
+        const q = search.trim().toLowerCase();
+        items = items.filter(t => 
+            (t.category?.toLowerCase() || '').includes(q) ||
+            (t.subcategory?.toLowerCase() || '').includes(q) ||
+            (t.account?.toLowerCase() || '').includes(q) ||
+            (t.note || "").toLowerCase().includes(q)
+        );
+    }
 
-      const dateFromMatch = !filterDateFrom || t.date >= filterDateFrom;
-      const dateToMatch = !filterDateTo || t.date <= filterDateTo;
-      const typeMatch = filterType === "Todos" || t.type === filterType;
-      const accountMatch =
-        filterAccount === "Todos" || t.account === filterAccount;
+    // 2. Filtrar por tipo
+    if (filterType !== "Todos") {
+        items = items.filter(t => t.type === filterType);
+    }
 
-      return (
-        searchMatch && dateFromMatch && dateToMatch && typeMatch && accountMatch
-      );
+    // 3. Filtrar por cuenta
+    if (filterAccount !== "Todos") {
+        items = items.filter(t => t.account === filterAccount);
+    }
+    
+    // 4. Filtrar por fecha
+    if (filterDateFrom) {
+        items = items.filter(t => t.date >= filterDateFrom);
+    }
+    if (filterDateTo) {
+        items = items.filter(t => t.date <= filterDateTo);
+    }
+
+    // 5. Ordenar
+    items.sort((a, b) => {
+        if (sortKey === "fecha") {
+            const da = a.date + " " + a.time;
+            const db = b.date + " " + b.time;
+            const cmp = da < db ? -1 : da > db ? 1 : 0;
+            return sortDir === "Asc" ? cmp : -cmp;
+        } else {
+            const cmp = a.account < b.account ? -1 : a.account > b.account ? 1 : 0;
+            return sortDir === "Asc" ? cmp : -cmp;
+        }
     });
 
-    base.sort((a, b) => {
-      if (sortKey === "fecha") {
-        const da = a.date + " " + a.time;
-        const db = b.date + " " + b.time;
-        const cmp = da < db ? -1 : da > db ? 1 : 0;
-        return sortDir === "Asc" ? cmp : -cmp;
-      } else {
-        const cmp = a.account < b.account ? -1 : a.account > b.account ? 1 : 0;
-        return sortDir === "Asc" ? cmp : -cmp;
-      }
-    });
-    return base;
-  }, [
-    tx,
-    search,
-    sortKey,
-    sortDir,
-    filterDateFrom,
-    filterDateTo,
-    filterType,
-    filterAccount,
-  ]);
+    return items;
+  }, [tx, search, sortKey, sortDir, filterDateFrom, filterDateTo, filterType, filterAccount]);
+  // ----- FIN LÓGICA DE FILTRADO CORREGIDA -----
 
   const pageCount = Math.max(1, Math.ceil(filteredSorted.length / PAGE_SIZE));
   const pageRows = filteredSorted.slice(
@@ -876,8 +891,6 @@ export default function App() {
         setCloudBusy(false);
     }
   };
-
-
   /* ================================= Render ================================= */
 
   return (
