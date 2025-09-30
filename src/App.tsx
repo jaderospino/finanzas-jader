@@ -1,4 +1,4 @@
-// App.tsx - VERSIÓN CON FILTRO ROBUSTO
+// App.tsx - VERSIÓN CON CORRECCIÓN DEFINITIVA DE CARGA Y FILTROS
 import React, {
   useEffect,
   useMemo,
@@ -36,9 +36,9 @@ import {
   saveGoal,
   deleteGoal,
   GoalRow,
-  loadDebts,
-  saveDebt,
-  deleteDebt,
+  loadDebts, 
+  saveDebt,   
+  deleteDebt, 
 } from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
@@ -157,7 +157,6 @@ const PIE_COLORS = [
 ];
 
 /* ============================== Hooks de UI ============================== */
-
 function useCountUp(value: number, duration = 700) {
   const [display, setDisplay] = useState(value);
   const fromRef = useRef(value);
@@ -202,7 +201,6 @@ function useRipple() {
 }
 
 /* ============================== Helpers fechas ============================== */
-
 function firstDayOfMonth(ym: string) {
   return `${ym}-01`;
 }
@@ -220,23 +218,17 @@ function startDow(ym: string) {
   return new Date(y, m - 1, 1).getDay();
 }
 
+
 /* ==================================== App ================================== */
 
 export default function App() {
-  // Nube
   const [cloudBusy, setCloudBusy] = useState(false);
   const [cloudMsg, setCloudMsg] = useState<string | null>(null);
-
-  // Usuario (email visible si hay sesión)
   const [userEmail, setUserEmail] = useState<string | null>(null);
-
-  // Modales
   const [showTags, setShowTags] = useState(false);
   const [showSettings, setShowSettings] = useState(false);
   const [showGoalModal, setShowGoalModal] = useState<boolean | Goal>(false);
 
-
-  // Ping a Supabase y pedir permiso de notificaciones
   useEffect(() => {
     checkSupabase().then((err) => {
       console.log("Supabase ping:", err?.message || "OK");
@@ -244,12 +236,10 @@ export default function App() {
     requestNotificationPermission();
   }, []);
 
-  // Obtener usuario al cargar
   useEffect(() => {
     getUser().then((u) => setUserEmail(u?.email ?? null));
   }, []);
 
-  /* Tema */
   const [dark, setDark] = useState<boolean>(() => {
     const saved = localStorage.getItem(STORAGE.THEME);
     if (saved === "dark") return true;
@@ -262,12 +252,10 @@ export default function App() {
     localStorage.setItem(STORAGE.THEME, dark ? "dark" : "light");
   }, [dark]);
 
-  /* Cargar datos de la nube al montar */
   useEffect(() => {
     const loadCloudData = async () => {
         const u = await getUser();
         if (!u) {
-            // Si no hay usuario, limpiar los datos locales para evitar inconsistencias
             setTx([]);
             setGoals([]);
             setTags(defaultTags);
@@ -277,12 +265,10 @@ export default function App() {
 
         setCloudBusy(true);
         try {
-            // Cargar Ajustes
             const s = await loadSettings();
             if (s?.tags && Object.keys(s.tags).length > 0) setTags(s.tags);
             if (s?.budget) setBudget(s.budget);
 
-            // Cargar Movimientos
             const cloudTx = await pullTx();
             if (Array.isArray(cloudTx)) {
                 const mapped: Tx[] = cloudTx.map((r: any) => ({
@@ -294,7 +280,6 @@ export default function App() {
                 setTx(mapped);
             }
             
-            // Cargar Objetivos
             const cloudGoals = await loadGoals();
             setGoals(cloudGoals);
 
@@ -302,182 +287,89 @@ export default function App() {
             setTimeout(() => setCloudMsg(null), 2000);
         } catch (e) {
             console.error(e);
-            setCloudMsg("No se pudieron cargar los datos (se usará local)");
+            setCloudMsg("No se pudieron cargar los datos");
             setTimeout(() => setCloudMsg(null), 2500);
         } finally {
             setCloudBusy(false);
         }
     };
     loadCloudData();
-  }, [userEmail]); // Recargar datos si el usuario cambia (login/logout)
+  }, [userEmail]);
   
-
-  /* Estado base */
   const [month, setMonth] = useState<string>(() => {
     const s = localStorage.getItem(STORAGE.MONTH);
     return s || new Date().toISOString().slice(0, 7);
   });
   const [tags, setTags] = useState<Record<string, string[]>>(() => {
-    try {
-      return (
-        JSON.parse(localStorage.getItem(STORAGE.TAGS) || "null") || defaultTags
-      );
-    } catch {
-      return defaultTags;
-    }
+    try { return JSON.parse(localStorage.getItem(STORAGE.TAGS) || "null") || defaultTags } 
+    catch { return defaultTags }
   });
   const [tx, setTx] = useState<Tx[]>(() => {
-    try {
-      return JSON.parse(localStorage.getItem(STORAGE.TX) || "[]");
-    } catch {
-      return [];
-    }
+    try { return JSON.parse(localStorage.getItem(STORAGE.TX) || "[]") }
+    catch { return [] }
   });
   const [budget, setBudget] = useState<Budget>(() => {
-    try {
-      return JSON.parse(
-        localStorage.getItem(STORAGE.BUDGET) ||
-          '{"basicos":0,"deseos":0,"ahorro":0}'
-      );
-    } catch {
-      return { basicos: 0, deseos: 0, ahorro: 0 };
-    }
+    try { return JSON.parse(localStorage.getItem(STORAGE.BUDGET) || '{"basicos":0,"deseos":0,"ahorro":0}') }
+    catch { return { basicos: 0, deseos: 0, ahorro: 0 } }
   });
   const [goals, setGoals] = useState<Goal[]>([]);
 
-  // Persistencia local
   useEffect(() => localStorage.setItem(STORAGE.TX, JSON.stringify(tx)), [tx]);
-  useEffect(
-    () => localStorage.setItem(STORAGE.TAGS, JSON.stringify(tags)),
-    [tags]
-  );
+  useEffect(() => localStorage.setItem(STORAGE.TAGS, JSON.stringify(tags)), [tags]);
   useEffect(() => localStorage.setItem(STORAGE.MONTH, month), [month]);
-  useEffect(
-    () => localStorage.setItem(STORAGE.BUDGET, JSON.stringify(budget)),
-    [budget]
-  );
-
-  /* -------- Captura (Ingreso/Gasto) -------- */
+  useEffect(() => localStorage.setItem(STORAGE.BUDGET, JSON.stringify(budget)), [budget]);
 
   const [form, setForm] = useState<{
-    type: TxType;
-    account: Account;
-    toAccount: Account | "";
-    date: string;
-    amountRaw: string;
-    category: string;
-    subcategory: string;
-    note: string;
+    type: TxType; account: Account; toAccount: Account | ""; date: string;
+    amountRaw: string; category: string; subcategory: string; note: string;
   }>({
-    type: "Ingreso",
-    account: "Banco Davivienda",
-    toAccount: "" as Account | "",
-    date: new Date().toISOString().slice(0, 10),
-    amountRaw: "",
-    category: "Ingresos",
-    subcategory: "Salario",
-    note: "",
+    type: "Ingreso", account: "Banco Davivienda", toAccount: "" as Account | "",
+    date: new Date().toISOString().slice(0, 10), amountRaw: "",
+    category: "Ingresos", subcategory: "Salario", note: "",
   });
 
-  const availableSubcats = useMemo(
-    () => tags[form.category] || [],
-    [tags, form.category]
-  );
+  const availableSubcats = useMemo(() => tags[form.category] || [], [tags, form.category]);
 
-  /* -------- Transferencias -------- */
   const [trf, setTrf] = useState<{
-    from: Account;
-    to: Account;
-    date: string;
-    amountRaw: string;
+    from: Account; to: Account; date: string; amountRaw: string;
   }>({
-    from: "Nequi",
-    to: "Efectivo",
-    date: new Date().toISOString().slice(0, 10),
-    amountRaw: "",
+    from: "Nequi", to: "Efectivo",
+    date: new Date().toISOString().slice(0, 10), amountRaw: "",
   });
-
+  
   const handleTransfer = () => {
     if (!trf.from || !trf.to || trf.from === trf.to) return;
     const amount = Math.abs(toNumberFromRaw(trf.amountRaw));
     if (!amount) return;
-
     const now = new Date();
-    const time = `${String(now.getHours()).padStart(2, "0")}:${String(
-      now.getMinutes()
-    ).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
+    const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
 
-    const out: Tx = {
-      id: crypto.randomUUID(),
-      type: "Transferencia",
-      account: trf.from,
-      toAccount: trf.to,
-      date: trf.date,
-      time,
-      amount: -amount,
-      category: "Ingresos",
-      subcategory: "Entre cuentas",
-      note: "",
-    };
-    const inc: Tx = {
-      id: crypto.randomUUID(),
-      type: "Transferencia",
-      account: trf.to,
-      toAccount: trf.from,
-      date: trf.date,
-      time,
-      amount: +amount,
-      category: "Ingresos",
-      subcategory: "Entre cuentas",
-      note: "",
-    };
+    const out: Tx = { id: crypto.randomUUID(), type: "Transferencia", account: trf.from, toAccount: trf.to, date: trf.date, time, amount: -amount, category: "Ingresos", subcategory: "Entre cuentas", note: "" };
+    const inc: Tx = { id: crypto.randomUUID(), type: "Transferencia", account: trf.to, toAccount: trf.from, date: trf.date, time, amount: +amount, category: "Ingresos", subcategory: "Entre cuentas", note: "" };
 
     setTx((t) => [out, inc, ...t]);
     setTrf((v) => ({ ...v, amountRaw: "" }));
   };
 
-  /* -------- Cerrar Sesión -------- */
   const handleSignOut = async () => {
     try {
       await signOut();
       setUserEmail(null);
-      setTx([]);
-      setTags(defaultTags);
-      setBudget({ basicos: 0, deseos: 0, ahorro: 0 });
-      setGoals([]);
-      setShowSettings(false);
     } catch (error) {
       console.error("Error al cerrar sesión", error);
     }
   };
 
-  /* ============================= Cálculos base ============================= */
-
-  const txOfMonth = useMemo(
-    () => tx.filter((t) => t.date.slice(0, 7) === month),
-    [tx, month]
-  );
+  const txOfMonth = useMemo(() => tx.filter((t) => t.date.slice(0, 7) === month), [tx, month]);
 
   const byAccountAllTime = useMemo(() => {
-    const map: Record<Account, number> = {
-      "Banco Davivienda": 0,
-      "Banco de Bogotá": 0,
-      Nequi: 0,
-      Rappi: 0,
-      Efectivo: 0,
-      "TC Rappi": 0,
-    };
-    tx.forEach((t) => {
-      map[t.account] += t.amount;
-    });
+    const map: Record<Account, number> = { "Banco Davivienda": 0, "Banco de Bogotá": 0, Nequi: 0, Rappi: 0, Efectivo: 0, "TC Rappi": 0, };
+    tx.forEach((t) => { map[t.account] += t.amount; });
     return map;
   }, [tx]);
 
   const totals = useMemo(() => {
-    let ingresos = 0,
-      gastos = 0,
-      ahorro = 0;
-
+    let ingresos = 0, gastos = 0, ahorro = 0;
     txOfMonth.forEach((t) => {
       if (t.type === "Ingreso" && t.account !== "TC Rappi") ingresos += t.amount;
       if (t.type === "Gasto") gastos += Math.abs(t.amount);
@@ -486,14 +378,7 @@ export default function App() {
         else if (t.type === "Gasto") ahorro -= Math.abs(t.amount);
       }
     });
-
-    const saldoActual =
-      byAccountAllTime["Banco Davivienda"] +
-      byAccountAllTime["Banco de Bogotá"] +
-      byAccountAllTime["Nequi"] +
-      byAccountAllTime["Rappi"] +
-      byAccountAllTime["Efectivo"];
-
+    const saldoActual = Object.values(byAccountAllTime).reduce((acc, v) => acc + v, 0) - byAccountAllTime["TC Rappi"];
     return { ingresos, gastos, ahorro, saldoActual, byAccountAllTime };
   }, [txOfMonth, byAccountAllTime]);
 
@@ -502,21 +387,14 @@ export default function App() {
     tx.forEach((t) => {
       const m = t.date.slice(0, 7);
       if (!map[m]) map[m] = { ingresos: 0, gastos: 0 };
-      if (t.type === "Ingreso" && t.account !== "TC Rappi")
-        map[m].ingresos += t.amount;
+      if (t.type === "Ingreso" && t.account !== "TC Rappi") map[m].ingresos += t.amount;
       if (t.type === "Gasto") map[m].gastos += Math.abs(t.amount);
     });
-    const arr = Object.entries(map)
-      .sort(([a], [b]) => (a < b ? -1 : 1))
-      .map(([k, v]) => ({ month: k, ...v }));
+    const arr = Object.entries(map).sort(([a], [b]) => (a < b ? -1 : 1)).map(([k, v]) => ({ month: k, ...v }));
     return arr.slice(-6);
   }, [tx]);
 
-  /* ======================= Analítica (pastel + barras) ====================== */
-
-  const [view, setView] = useState<"categoria" | "subcategoria" | "cuenta">(
-    "categoria"
-  );
+  const [view, setView] = useState<"categoria" | "subcategoria" | "cuenta">("categoria");
   const [selectedCat, setSelectedCat] = useState<string>("");
   const [accFilter, setAccFilter] = useState<AccountFilter>("Todas");
   const [timeMode, setTimeMode] = useState<"mes" | "rango">("mes");
@@ -543,48 +421,28 @@ export default function App() {
 
   const analyticsData = useMemo(() => {
     const map = new Map<string, number>();
-    const add = (key: string, v: number) =>
-      map.set(key, (map.get(key) || 0) + Math.abs(v));
+    const add = (key: string, v: number) => map.set(key, (map.get(key) || 0) + Math.abs(v));
 
     if (view === "categoria") {
       txForCharts.forEach((t) => add(t.category || "Otros", t.amount));
     } else if (view === "cuenta") {
       txForCharts.forEach((t) => add(t.account, t.amount));
     } else {
-      const cat =
-        selectedCat ||
-        (() => {
-          const cm = new Map<string, number>();
-          txForCharts.forEach((t) =>
-            cm.set(t.category, (cm.get(t.category) || 0) + Math.abs(t.amount))
-          );
-          let top = "";
-          let val = -1;
-          cm.forEach((v, k) => {
-            if (v > val) {
-              val = v;
-              top = k;
-            }
-          });
-          return top;
-        })();
-
-      txForCharts
-        .filter((t) => t.category === cat)
-        .forEach((t) => add(t.subcategory || "Otros", t.amount));
+      const cat = selectedCat || (() => {
+        const cm = new Map<string, number>();
+        txForCharts.forEach((t) => cm.set(t.category, (cm.get(t.category) || 0) + Math.abs(t.amount)));
+        let top = ""; let val = -1;
+        cm.forEach((v, k) => { if (v > val) { val = v; top = k; }});
+        return top;
+      })();
+      txForCharts.filter((t) => t.category === cat).forEach((t) => add(t.subcategory || "Otros", t.amount));
     }
 
-    const arr = Array.from(map.entries())
-      .map(([name, value]) => ({ name, value }))
-      .sort((a, b) => b.value - a.value);
+    const arr = Array.from(map.entries()).map(([name, value]) => ({ name, value })).sort((a, b) => b.value - a.value);
     return arr.length ? arr : [{ name: "Sin datos", value: 0 }];
   }, [txForCharts, view, selectedCat]);
 
-  /* ============================ Tabla & acciones ============================ */
-
-  const [tab, setTab] = useState<
-    "capturar" | "transferir" | "presupuesto" | "calendario" | "tabla" | "objetivos"
-  >("capturar");
+  const [tab, setTab] = useState<"capturar" | "transferir" | "presupuesto" | "calendario" | "tabla" | "objetivos">("capturar");
   const [search, setSearch] = useState("");
   const [sortKey, setSortKey] = useState<"fecha" | "cuenta">("fecha");
   const [sortDir, setSortDir] = useState<"Asc" | "Desc">("Desc");
@@ -594,15 +452,11 @@ export default function App() {
   const [filterDateFrom, setFilterDateFrom] = useState("");
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterType, setFilterType] = useState<TxType | "Todos">("Todos");
-  const [filterAccount, setFilterAccount] = useState<Account | "Todas">(
-    "Todas"
-  );
-
-  // ----- INICIO LÓGICA DE FILTRADO CORREGIDA -----
+  const [filterAccount, setFilterAccount] = useState<Account | "Todas">("Todos");
+  
   const filteredSorted = useMemo(() => {
     let items = [...tx];
 
-    // 1. Filtrar por texto
     if (search) {
         const q = search.trim().toLowerCase();
         items = items.filter(t => 
@@ -612,18 +466,12 @@ export default function App() {
             (t.note || "").toLowerCase().includes(q)
         );
     }
-
-    // 2. Filtrar por tipo
     if (filterType !== "Todos") {
         items = items.filter(t => t.type === filterType);
     }
-
-    // 3. Filtrar por cuenta
     if (filterAccount !== "Todos") {
         items = items.filter(t => t.account === filterAccount);
     }
-    
-    // 4. Filtrar por fecha
     if (filterDateFrom) {
         items = items.filter(t => t.date >= filterDateFrom);
     }
@@ -631,7 +479,6 @@ export default function App() {
         items = items.filter(t => t.date <= filterDateTo);
     }
 
-    // 5. Ordenar
     items.sort((a, b) => {
         if (sortKey === "fecha") {
             const da = a.date + " " + a.time;
@@ -646,14 +493,10 @@ export default function App() {
 
     return items;
   }, [tx, search, sortKey, sortDir, filterDateFrom, filterDateTo, filterType, filterAccount]);
-  // ----- FIN LÓGICA DE FILTRADO CORREGIDA -----
 
   const pageCount = Math.max(1, Math.ceil(filteredSorted.length / PAGE_SIZE));
-  const pageRows = filteredSorted.slice(
-    (page - 1) * PAGE_SIZE,
-    page * PAGE_SIZE
-  );
-
+  const pageRows = filteredSorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
+  
   const toggleSelect = (id: string) => {
     setSelectedIds((s) => {
       const ns = new Set(s);
@@ -677,21 +520,7 @@ export default function App() {
       }
     }
   };
-  const deleteAll = async () => {
-    if (!confirm("¿Eliminar todos los movimientos?")) return;
-    const ids = tx.map((r) => r.id);
-    setTx([]);
-    setSelectedIds(new Set());
-    if (userEmail && ids.length) {
-      try {
-        await deleteTxCloud(ids);
-      } catch (e) {
-        console.error(e);
-        setCloudMsg("No se pudo borrar en la nube");
-        setTimeout(() => setCloudMsg(null), 1800);
-      }
-    }
-  };
+  
   const deleteOne = async (id: string) => {
     setTx((t) => t.filter((r) => r.id !== id));
     setSelectedIds((s) => {
@@ -709,8 +538,6 @@ export default function App() {
       }
     }
   };
-
-  /* ======= Meses con datos ======= */
 
   const monthsWithData = useMemo(() => {
     const set = new Set<string>();
@@ -730,8 +557,6 @@ export default function App() {
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [monthsWithData]);
 
-  /* ========================== Datos para Calendario ========================= */
-
   const calendarCells = useMemo(() => {
     const totalDays = daysInMonth(month);
     const offset = startDow(month);
@@ -748,38 +573,17 @@ export default function App() {
     for (let d = 1; d <= totalDays; d++) {
       const date = `${month}-${String(d).padStart(2, "0")}`;
       const dayTx = tx.filter((t) => t.date === date);
-      const ingresos =
-        dayTx
-          .filter((t) => t.type === "Ingreso" && t.account !== "TC Rappi")
-          .reduce((s, t) => s + t.amount, 0) || 0;
-      const gastos =
-        dayTx
-          .filter((t) => t.type === "Gasto")
-          .reduce((s, t) => s + Math.abs(t.amount), 0) || 0;
-      const transfer =
-        dayTx
-          .filter((t) => t.type === "Transferencia")
-          .reduce((s, t) => s + Math.abs(t.amount), 0) || 0;
-
-      cells.push({
-        date,
-        ingresos,
-        gastos,
-        transfer,
-        items: dayTx,
-      });
+      const ingresos = dayTx.filter((t) => t.type === "Ingreso" && t.account !== "TC Rappi").reduce((s, t) => s + t.amount, 0) || 0;
+      const gastos = dayTx.filter((t) => t.type === "Gasto").reduce((s, t) => s + Math.abs(t.amount), 0) || 0;
+      const transfer = dayTx.filter((t) => t.type === "Transferencia").reduce((s, t) => s + Math.abs(t.amount), 0) || 0;
+      cells.push({ date, ingresos, gastos, transfer, items: dayTx });
     }
 
     while (cells.length % 7 !== 0) cells.push({});
     return cells;
   }, [tx, month]);
 
-  /* ========= Estados y Lógica de Modales ========= */
-
-  const [dayModal, setDayModal] = useState<{
-    date: string;
-    items: Tx[];
-  } | null>(null);
+  const [dayModal, setDayModal] = useState<{ date: string; items: Tx[] } | null>(null);
   const [editingTx, setEditingTx] = useState<Tx | null>(null);
 
   useEffect(() => {
@@ -814,46 +618,29 @@ export default function App() {
         subcategory: form.subcategory,
         note: form.note,
       };
-
       setTx(tx.map((t) => (t.id === editingTx.id ? updatedTx : t)));
       setEditingTx(null);
     } else {
       const now = new Date();
-      const time = `${String(now.getHours()).padStart(2, "0")}:${String(
-        now.getMinutes()
-      ).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
-
+      const time = `${String(now.getHours()).padStart(2, "0")}:${String(now.getMinutes()).padStart(2, "0")}:${String(now.getSeconds()).padStart(2, "0")}`;
       const sign = form.type === "Ingreso" ? +1 : -1;
-
       const record: Tx = {
         id: crypto.randomUUID(),
-        type: form.type,
-        account: form.account,
-        toAccount: "",
-        date: form.date,
-        time,
-        amount: Math.abs(amount) * sign,
-        category: form.category,
-        subcategory: form.subcategory,
-        note: form.note,
+        type: form.type, account: form.account, toAccount: "",
+        date: form.date, time, amount: Math.abs(amount) * sign,
+        category: form.category, subcategory: form.subcategory, note: form.note,
       };
       setTx((t) => [record, ...t]);
       sendNotification("Transacción Guardada", {
           body: `Se ha añadido un ${record.type} de ${fmtCOP(record.amount)} en la cuenta ${record.account}.`,
-          badge: "/badge-icon.png",
-          icon: "/icon-192x192.png"
+          badge: "/badge-icon.png", icon: "/icon-192x192.png"
       });
     }
 
     setForm({
-      type: "Ingreso",
-      account: "Banco Davivienda",
-      toAccount: "",
-      date: new Date().toISOString().slice(0, 10),
-      amountRaw: "",
-      category: "Ingresos",
-      subcategory: "Salario",
-      note: "",
+      type: "Ingreso", account: "Banco Davivienda", toAccount: "",
+      date: new Date().toISOString().slice(0, 10), amountRaw: "",
+      category: "Ingresos", subcategory: "Salario", note: "",
     });
   };
 
@@ -891,6 +678,8 @@ export default function App() {
         setCloudBusy(false);
     }
   };
+
+}
   /* ================================= Render ================================= */
 
   return (
