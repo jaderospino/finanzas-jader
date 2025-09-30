@@ -36,9 +36,9 @@ import {
   saveGoal,
   deleteGoal,
   GoalRow,
-  loadDebts, 
-  saveDebt,   
-  deleteDebt, 
+  loadDebts,
+  saveDebt,
+  deleteDebt,
 } from "./lib/supabase";
 
 /* =========================== Utilidades de dinero =========================== */
@@ -76,17 +76,17 @@ function normalizeMoneyInput(s: string) {
 const toNumberFromRaw = (raw: string) => normalizeMoneyInput(raw).value;
 
 function requestNotificationPermission() {
-    if (!("Notification" in window)) {
-        console.log("Este navegador no soporta notificaciones de escritorio.");
-    } else if (Notification.permission === "default") {
-        Notification.requestPermission();
-    }
+  if (!("Notification" in window)) {
+    console.log("Este navegador no soporta notificaciones de escritorio.");
+  } else if (Notification.permission === "default") {
+    Notification.requestPermission();
+  }
 }
 
 function sendNotification(title: string, options?: NotificationOptions) {
-    if (Notification.permission === "granted") {
-        new Notification(title, options);
-    }
+  if (Notification.permission === "granted") {
+    new Notification(title, options);
+  }
 }
 
 /* =================================== Tipos ================================= */
@@ -121,7 +121,6 @@ type Budget = {
 };
 
 type Goal = Omit<GoalRow, "user_id">;
-
 
 const STORAGE = {
   TX: "fj_tx_v2",
@@ -218,6 +217,14 @@ function startDow(ym: string) {
   return new Date(y, m - 1, 1).getDay();
 }
 
+// CORRECCIÓN 2: Se movió la función fmtTick aquí para que esté declarada antes de su uso.
+function fmtTick(v: number) {
+  const abs = Math.abs(v);
+  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)} MM`;
+  if (abs >= 1000) return `${Math.round(v / 1000)} mil`;
+  return fmtCOP(v);
+}
+
 
 /* ==================================== App ================================== */
 
@@ -254,54 +261,54 @@ export default function App() {
 
   useEffect(() => {
     const loadCloudData = async () => {
-        const u = await getUser();
-        if (!u) {
-            setTx([]);
-            setGoals([]);
-            setTags(defaultTags);
-            setBudget({ basicos: 0, deseos: 0, ahorro: 0 });
-            return;
-        };
+      const u = await getUser();
+      if (!u) {
+        setTx([]);
+        setGoals([]);
+        setTags(defaultTags);
+        setBudget({ basicos: 0, deseos: 0, ahorro: 0 });
+        return;
+      }
 
-        setCloudBusy(true);
-        try {
-            const s = await loadSettings();
-            if (s?.tags && Object.keys(s.tags).length > 0) setTags(s.tags);
-            if (s?.budget) setBudget(s.budget);
+      setCloudBusy(true);
+      try {
+        const s = await loadSettings();
+        if (s?.tags && Object.keys(s.tags).length > 0) setTags(s.tags);
+        if (s?.budget) setBudget(s.budget);
 
-            const cloudTx = await pullTx();
-            if (Array.isArray(cloudTx)) {
-                const mapped: Tx[] = cloudTx.map((r: any) => ({
-                    id: r.id, type: r.type, account: r.account as Account,
-                    toAccount: (r.to_account as Account) || "", date: r.date,
-                    time: r.time, amount: Number(r.amount), category: r.category,
-                    subcategory: r.subcategory, note: r.note || "",
-                }));
-                setTx(mapped);
-            }
-            
-            const cloudGoals = await loadGoals();
-            setGoals(cloudGoals);
-
-            setCloudMsg("Datos cargados desde la nube");
-            setTimeout(() => setCloudMsg(null), 2000);
-        } catch (e) {
-            console.error(e);
-            setCloudMsg("No se pudieron cargar los datos");
-            setTimeout(() => setCloudMsg(null), 2500);
-        } finally {
-            setCloudBusy(false);
+        const cloudTx = await pullTx();
+        if (Array.isArray(cloudTx)) {
+          const mapped: Tx[] = cloudTx.map((r: any) => ({
+            id: r.id, type: r.type, account: r.account as Account,
+            toAccount: (r.to_account as Account) || "", date: r.date,
+            time: r.time, amount: Number(r.amount), category: r.category,
+            subcategory: r.subcategory, note: r.note || "",
+          }));
+          setTx(mapped);
         }
+
+        const cloudGoals = await loadGoals();
+        setGoals(cloudGoals);
+
+        setCloudMsg("Datos cargados desde la nube");
+        setTimeout(() => setCloudMsg(null), 2000);
+      } catch (e) {
+        console.error(e);
+        setCloudMsg("No se pudieron cargar los datos");
+        setTimeout(() => setCloudMsg(null), 2500);
+      } finally {
+        setCloudBusy(false);
+      }
     };
     loadCloudData();
   }, [userEmail]);
-  
+
   const [month, setMonth] = useState<string>(() => {
     const s = localStorage.getItem(STORAGE.MONTH);
     return s || new Date().toISOString().slice(0, 7);
   });
   const [tags, setTags] = useState<Record<string, string[]>>(() => {
-    try { return JSON.parse(localStorage.getItem(STORAGE.TAGS) || "null") || defaultTags } 
+    try { return JSON.parse(localStorage.getItem(STORAGE.TAGS) || "null") || defaultTags }
     catch { return defaultTags }
   });
   const [tx, setTx] = useState<Tx[]>(() => {
@@ -336,7 +343,7 @@ export default function App() {
     from: "Nequi", to: "Efectivo",
     date: new Date().toISOString().slice(0, 10), amountRaw: "",
   });
-  
+
   const handleTransfer = () => {
     if (!trf.from || !trf.to || trf.from === trf.to) return;
     const amount = Math.abs(toNumberFromRaw(trf.amountRaw));
@@ -432,7 +439,7 @@ export default function App() {
         const cm = new Map<string, number>();
         txForCharts.forEach((t) => cm.set(t.category, (cm.get(t.category) || 0) + Math.abs(t.amount)));
         let top = ""; let val = -1;
-        cm.forEach((v, k) => { if (v > val) { val = v; top = k; }});
+        cm.forEach((v, k) => { if (v > val) { val = v; top = k; } });
         return top;
       })();
       txForCharts.filter((t) => t.category === cat).forEach((t) => add(t.subcategory || "Otros", t.amount));
@@ -453,42 +460,42 @@ export default function App() {
   const [filterDateTo, setFilterDateTo] = useState("");
   const [filterType, setFilterType] = useState<TxType | "Todos">("Todos");
   const [filterAccount, setFilterAccount] = useState<Account | "Todas">("Todos");
-  
+
   const filteredSorted = useMemo(() => {
     let items = [...tx];
 
     if (search) {
-        const q = search.trim().toLowerCase();
-        items = items.filter(t => 
-            (t.category?.toLowerCase() || '').includes(q) ||
-            (t.subcategory?.toLowerCase() || '').includes(q) ||
-            (t.account?.toLowerCase() || '').includes(q) ||
-            (t.note || "").toLowerCase().includes(q)
-        );
+      const q = search.trim().toLowerCase();
+      items = items.filter(t =>
+        (t.category?.toLowerCase() || '').includes(q) ||
+        (t.subcategory?.toLowerCase() || '').includes(q) ||
+        (t.account?.toLowerCase() || '').includes(q) ||
+        (t.note || "").toLowerCase().includes(q)
+      );
     }
     if (filterType !== "Todos") {
-        items = items.filter(t => t.type === filterType);
+      items = items.filter(t => t.type === filterType);
     }
     if (filterAccount !== "Todos") {
-        items = items.filter(t => t.account === filterAccount);
+      items = items.filter(t => t.account === filterAccount);
     }
     if (filterDateFrom) {
-        items = items.filter(t => t.date >= filterDateFrom);
+      items = items.filter(t => t.date >= filterDateFrom);
     }
     if (filterDateTo) {
-        items = items.filter(t => t.date <= filterDateTo);
+      items = items.filter(t => t.date <= filterDateTo);
     }
 
     items.sort((a, b) => {
-        if (sortKey === "fecha") {
-            const da = a.date + " " + a.time;
-            const db = b.date + " " + b.time;
-            const cmp = da < db ? -1 : da > db ? 1 : 0;
-            return sortDir === "Asc" ? cmp : -cmp;
-        } else {
-            const cmp = a.account < b.account ? -1 : a.account > b.account ? 1 : 0;
-            return sortDir === "Asc" ? cmp : -cmp;
-        }
+      if (sortKey === "fecha") {
+        const da = a.date + " " + a.time;
+        const db = b.date + " " + b.time;
+        const cmp = da < db ? -1 : da > db ? 1 : 0;
+        return sortDir === "Asc" ? cmp : -cmp;
+      } else {
+        const cmp = a.account < b.account ? -1 : a.account > b.account ? 1 : 0;
+        return sortDir === "Asc" ? cmp : -cmp;
+      }
     });
 
     return items;
@@ -496,7 +503,7 @@ export default function App() {
 
   const pageCount = Math.max(1, Math.ceil(filteredSorted.length / PAGE_SIZE));
   const pageRows = filteredSorted.slice((page - 1) * PAGE_SIZE, page * PAGE_SIZE);
-  
+
   const toggleSelect = (id: string) => {
     setSelectedIds((s) => {
       const ns = new Set(s);
@@ -520,7 +527,7 @@ export default function App() {
       }
     }
   };
-  
+
   const deleteOne = async (id: string) => {
     setTx((t) => t.filter((r) => r.id !== id));
     setSelectedIds((s) => {
@@ -632,8 +639,8 @@ export default function App() {
       };
       setTx((t) => [record, ...t]);
       sendNotification("Transacción Guardada", {
-          body: `Se ha añadido un ${record.type} de ${fmtCOP(record.amount)} en la cuenta ${record.account}.`,
-          badge: "/badge-icon.png", icon: "/icon-192x192.png"
+        body: `Se ha añadido un ${record.type} de ${fmtCOP(record.amount)} en la cuenta ${record.account}.`,
+        badge: "/badge-icon.png", icon: "/icon-192x192.png"
       });
     }
 
@@ -646,40 +653,39 @@ export default function App() {
 
   const handleSaveGoal = async (goalData: Omit<Goal, "created_at" | "user_id">) => {
     try {
-        setCloudBusy(true);
-        await saveGoal(goalData);
-        const updatedGoals = await loadGoals();
-        setGoals(updatedGoals);
-        setCloudMsg("Objetivo guardado ✅");
-        setTimeout(() => setCloudMsg(null), 2000);
+      setCloudBusy(true);
+      await saveGoal(goalData);
+      const updatedGoals = await loadGoals();
+      setGoals(updatedGoals);
+      setCloudMsg("Objetivo guardado ✅");
+      setTimeout(() => setCloudMsg(null), 2000);
     } catch (e) {
-        console.error(e);
-        setCloudMsg("Error al guardar objetivo");
-        setTimeout(() => setCloudMsg(null), 2000);
+      console.error(e);
+      setCloudMsg("Error al guardar objetivo");
+      setTimeout(() => setCloudMsg(null), 2000);
     } finally {
-        setCloudBusy(false);
-        setShowGoalModal(false);
+      setCloudBusy(false);
+      setShowGoalModal(false);
     }
   };
 
   const handleDeleteGoal = async (id: string) => {
     if (!confirm("¿Estás seguro de que quieres eliminar este objetivo?")) return;
     try {
-        setCloudBusy(true);
-        await deleteGoal(id);
-        setGoals(goals.filter(g => g.id !== id));
-        setCloudMsg("Objetivo eliminado");
-        setTimeout(() => setCloudMsg(null), 2000);
+      setCloudBusy(true);
+      await deleteGoal(id);
+      setGoals(goals.filter(g => g.id !== id));
+      setCloudMsg("Objetivo eliminado");
+      setTimeout(() => setCloudMsg(null), 2000);
     } catch (e) {
-        console.error(e);
-        setCloudMsg("Error al eliminar objetivo");
-        setTimeout(() => setCloudMsg(null), 2000);
+      console.error(e);
+      setCloudMsg("Error al eliminar objetivo");
+      setTimeout(() => setCloudMsg(null), 2000);
     } finally {
-        setCloudBusy(false);
+      setCloudBusy(false);
     }
   };
 
-}
   /* ================================= Render ================================= */
 
   return (
@@ -745,7 +751,7 @@ export default function App() {
             />
           </div>
         </section>
-        
+
         <section
           className="hidden sm:flex flex-wrap items-center gap-2 fade-up"
           style={{ animationDelay: "80ms" }}
@@ -798,30 +804,30 @@ export default function App() {
             </select>
           </div>
         </section>
-        
+
         {tab === "objetivos" && (
-            <section className="fade-up">
-                <div className="flex items-center justify-between mb-4">
-                    <h2 className="text-xl font-semibold">Objetivos de Ahorro</h2>
-                    <PrimaryBtn onClick={() => setShowGoalModal(true)}>+ Nuevo Objetivo</PrimaryBtn>
-                </div>
-                {goals.length === 0 && (
-                    <div className="text-center py-12 px-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
-                        <p className="text-slate-500 dark:text-slate-400">Aún no tienes objetivos de ahorro.</p>
-                        <p className="text-slate-500 dark:text-slate-400 mt-1">¡Crea tu primer objetivo para empezar a ahorrar!</p>
-                    </div>
-                )}
-                <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
-                    {goals.map(goal => (
-                        <GoalCard 
-                            key={goal.id} 
-                            goal={goal} 
-                            onEdit={() => setShowGoalModal(goal)}
-                            onDelete={() => handleDeleteGoal(goal.id)}
-                        />
-                    ))}
-                </div>
-            </section>
+          <section className="fade-up">
+            <div className="flex items-center justify-between mb-4">
+              <h2 className="text-xl font-semibold">Objetivos de Ahorro</h2>
+              <PrimaryBtn onClick={() => setShowGoalModal(true)}>+ Nuevo Objetivo</PrimaryBtn>
+            </div>
+            {goals.length === 0 && (
+              <div className="text-center py-12 px-6 bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700">
+                <p className="text-slate-500 dark:text-slate-400">Aún no tienes objetivos de ahorro.</p>
+                <p className="text-slate-500 dark:text-slate-400 mt-1">¡Crea tu primer objetivo para empezar a ahorrar!</p>
+              </div>
+            )}
+            <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-5">
+              {goals.map(goal => (
+                <GoalCard
+                  key={goal.id}
+                  goal={goal}
+                  onEdit={() => setShowGoalModal(goal)}
+                  onDelete={() => handleDeleteGoal(goal.id)}
+                />
+              ))}
+            </div>
+          </section>
         )}
 
         {tab === "capturar" && (
@@ -902,7 +908,7 @@ export default function App() {
                   </PrimaryBtn>
                   <GhostBtn
                     onClick={() => {
-                      setEditingTx(null); 
+                      setEditingTx(null);
                       setForm({
                         type: "Ingreso",
                         account: "Banco Davivienda",
@@ -928,9 +934,8 @@ export default function App() {
                     {view === "categoria"
                       ? "Gasto por categoría"
                       : view === "cuenta"
-                      ? "Gasto por cuenta"
-                      : `Subcategorías — ${
-                          selectedCat || "selecciona una categoría"
+                        ? "Gasto por cuenta"
+                        : `Subcategorías — ${selectedCat || "selecciona una categoría"
                         }`}
                   </h3>
                   {view === "subcategoria" && (
@@ -1073,9 +1078,8 @@ export default function App() {
                   {view === "categoria"
                     ? "Gasto por categoría"
                     : view === "cuenta"
-                    ? "Gasto por cuenta"
-                    : `Subcategorías — ${
-                        selectedCat || "selecciona una categoría"
+                      ? "Gasto por cuenta"
+                      : `Subcategorías — ${selectedCat || "selecciona una categoría"
                       }`}
                 </h3>
                 <div className="h-56 sm:h-64">
@@ -1109,7 +1113,7 @@ export default function App() {
             </div>
           </section>
         )}
-        
+
         {tab === "transferir" && (
           <section className="bg-white dark:bg-slate-800 rounded-xl border border-slate-200 dark:border-slate-700 p-3 sm:p-4 fade-up">
             <h3 className="font-medium mb-4">Transferencia entre cuentas</h3>
@@ -1268,12 +1272,11 @@ export default function App() {
                       })
                     }
                     className={`min-h-[110px] rounded-lg border p-1.5 flex flex-col text-left transition
-                      fade-up calendar-cell overflow-hidden
-                      bg-white dark:bg-slate-900
-                      ${
-                        clickable
-                          ? "border-slate-200 dark:border-slate-700 hover:shadow-lg hover:-translate-y-0.5 hover:bg-slate-50 dark:hover:bg-slate-800"
-                          : "border-slate-200/60 dark:border-slate-700/60 opacity-80 cursor-default"
+                        fade-up calendar-cell overflow-hidden
+                        bg-white dark:bg-slate-900
+                        ${clickable
+                        ? "border-slate-200 dark:border-slate-700 hover:shadow-lg hover:-translate-y-0.5 hover:bg-slate-50 dark:hover:bg-slate-800"
+                        : "border-slate-200/60 dark:border-slate-700/60 opacity-80 cursor-default"
                       }`}
                     style={{ animationDelay: `${(idx % 14) * 20}ms` }}
                   >
@@ -1424,9 +1427,8 @@ export default function App() {
                       <td className="py-2 px-2">{r.category}</td>
                       <td className="py-2 px-2">{r.subcategory}</td>
                       <td
-                        className={`py-2 px-2 whitespace-nowrap ${
-                          r.amount < 0 ? "text-rose-500" : "text-emerald-500"
-                        }`}
+                        className={`py-2 px-2 whitespace-nowrap ${r.amount < 0 ? "text-rose-500" : "text-emerald-500"
+                          }`}
                       >
                         {fmtCOP(r.amount)}
                       </td>
@@ -1491,12 +1493,12 @@ export default function App() {
       {dayModal && (
         <DayModal data={dayModal} onClose={() => setDayModal(null)} />
       )}
-      
+
       {showGoalModal && (
         <GoalModal
-            onClose={() => setShowGoalModal(false)}
-            onSave={handleSaveGoal}
-            existingGoal={typeof showGoalModal === 'object' ? showGoalModal : undefined}
+          onClose={() => setShowGoalModal(false)}
+          onSave={handleSaveGoal}
+          existingGoal={typeof showGoalModal === 'object' ? showGoalModal : undefined}
         />
       )}
 
@@ -1621,7 +1623,7 @@ export default function App() {
           {cloudMsg}
         </div>
       )}
-      
+
       <nav className="fixed z-40 bottom-3 left-1/2 -translate-x-1/2 sm:hidden">
         <div className="bg-white/90 dark:bg-slate-900/90 backdrop-blur border border-slate-200 dark:border-slate-700 rounded-full px-2 py-1 flex gap-1">
           <TabButton
@@ -1663,7 +1665,7 @@ export default function App() {
       </footer>
     </div>
   );
-}
+} // <--- CORRECCIÓN 1: La llave de cierre del componente App se movió aquí.
 
 /* ============================== Subcomponentes ============================== */
 
@@ -1690,39 +1692,39 @@ function GoalModal({
       return;
     }
     onSave({
-        id: existingGoal?.id || crypto.randomUUID(),
-        name,
-        target_amount,
-        current_amount: existingGoal?.current_amount || 0,
-        target_date: targetDate || null,
+      id: existingGoal?.id || crypto.randomUUID(),
+      name,
+      target_amount,
+      current_amount: existingGoal?.current_amount || 0,
+      target_date: targetDate || null,
     });
   };
 
   return (
-     <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={onClose}>
+    <div className="fixed inset-0 bg-black/40 dark:bg-black/60 backdrop-blur-sm grid place-items-center p-4 z-50" onClick={onClose}>
       <div className="w-full max-w-md bg-white dark:bg-slate-900 rounded-2xl border border-slate-200 dark:border-slate-700 shadow-xl" onClick={(e) => e.stopPropagation()}>
         <form onSubmit={handleSubmit}>
-            <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
-                <h3 className="font-medium">{existingGoal ? "Editar Objetivo" : "Nuevo Objetivo"}</h3>
+          <div className="px-5 py-4 border-b border-slate-200 dark:border-slate-700">
+            <h3 className="font-medium">{existingGoal ? "Editar Objetivo" : "Nuevo Objetivo"}</h3>
+          </div>
+          <div className="p-5 space-y-4">
+            <div>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del Objetivo</label>
+              <input value={name} onChange={e => setName(e.target.value)} required className="mt-1 w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
             </div>
-            <div className="p-5 space-y-4">
-                <div>
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Nombre del Objetivo</label>
-                    <input value={name} onChange={e => setName(e.target.value)} required className="mt-1 w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"/>
-                </div>
-                <div>
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Monto Objetivo</label>
-                    <MoneyInput value={targetAmountRaw} onChange={setTargetAmountRaw} placeholder="Monto (COP)"/>
-                </div>
-                <div>
-                    <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Fecha Límite (Opcional)</label>
-                    <input type="date" value={targetDate || ''} onChange={e => setTargetDate(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm"/>
-                </div>
+            <div>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Monto Objetivo</label>
+              <MoneyInput value={targetAmountRaw} onChange={setTargetAmountRaw} placeholder="Monto (COP)" />
             </div>
-            <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
-                <GhostBtn type="button" onClick={onClose}>Cancelar</GhostBtn>
-                <PrimaryBtn type="submit">Guardar Objetivo</PrimaryBtn>
+            <div>
+              <label className="text-sm font-medium text-slate-700 dark:text-slate-300">Fecha Límite (Opcional)</label>
+              <input type="date" value={targetDate || ''} onChange={e => setTargetDate(e.target.value)} className="mt-1 w-full px-3 py-2 rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 text-sm" />
             </div>
+          </div>
+          <div className="px-5 py-4 border-t border-slate-200 dark:border-slate-700 flex justify-end gap-2">
+            <GhostBtn type="button" onClick={onClose}>Cancelar</GhostBtn>
+            <PrimaryBtn type="submit">Guardar Objetivo</PrimaryBtn>
+          </div>
         </form>
       </div>
     </div>
@@ -1771,8 +1773,8 @@ function GoalCard({
           )}
         </div>
         <div className="flex gap-2">
-            <button onClick={onEdit} className="text-xs hover:underline text-slate-500">Editar</button>
-            <button onClick={onDelete} className="text-xs hover:underline text-rose-500">Eliminar</button>
+          <button onClick={onEdit} className="text-xs hover:underline text-slate-500">Editar</button>
+          <button onClick={onDelete} className="text-xs hover:underline text-rose-500">Eliminar</button>
         </div>
       </div>
       <div>
@@ -1851,9 +1853,8 @@ function SettingsModal({
             ⬇️ Exportar datos (JSON)
           </HeaderBtn>
           <label
-            className={`relative ripple w-full text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer transition active:scale-[0.98] ${
-              cloudBusy ? "opacity-50 cursor-not-allowed" : ""
-            }`}
+            className={`relative ripple w-full text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 cursor-pointer transition active:scale-[0.98] ${cloudBusy ? "opacity-50 cursor-not-allowed" : ""
+              }`}
           >
             ⬆️ Importar datos (JSON)
             <input
@@ -1904,9 +1905,8 @@ function HeaderBtn({
       onClick={onClick}
       title={title}
       disabled={disabled}
-      className={`relative ripple text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition active:scale-[0.98] ${
-        fullWidth ? "w-full" : ""
-      } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
+      className={`relative ripple text-center px-2.5 py-1.5 text-xs sm:text-sm rounded-md border border-slate-300 dark:border-slate-700 bg-white dark:bg-slate-800 hover:bg-slate-100 dark:hover:bg-slate-700 transition active:scale-[0.98] ${fullWidth ? "w-full" : ""
+        } ${disabled ? "opacity-50 cursor-not-allowed" : ""}`}
     >
       {children}
     </button>
@@ -1933,9 +1933,8 @@ function Kpi({
         {title}
       </div>
       <div
-        className={`text-base sm:text-xl font-semibold ${
-          danger ? "text-rose-500" : good ? "text-emerald-500" : ""
-        } ${extraClass || ""}`}
+        className={`text-base sm:text-xl font-semibold ${danger ? "text-rose-500" : good ? "text-emerald-500" : ""
+          } ${extraClass || ""}`}
       >
         {fmtCOP(shown)}
       </div>
@@ -2027,8 +2026,8 @@ function HeroKpi({
     danger
       ? "text-rose-600 dark:text-rose-400"
       : good
-      ? "text-emerald-600 dark:text-emerald-400"
-      : "text-slate-900 dark:text-slate-100";
+        ? "text-emerald-600 dark:text-emerald-400"
+        : "text-slate-900 dark:text-slate-100";
 
   return (
     <div
@@ -2078,10 +2077,9 @@ function TabButton({
       onClick={onClick}
       className={`relative ripple px-2.5 sm:px-3 py-1.5 rounded-lg border text-xs sm:text-sm transition
         active:scale-[0.98]
-        ${
-          active
-            ? "bg-slate-900 text-white border-slate-900"
-            : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
+        ${active
+          ? "bg-slate-900 text-white border-slate-900"
+          : "bg-white dark:bg-slate-800 border-slate-300 dark:border-slate-700 hover:bg-slate-100 dark:hover:bg-slate-700"
         }`}
     >
       {txt}
@@ -2254,9 +2252,8 @@ function DangerGhost({
       onMouseDown={onMouseDown}
       onClick={onClick}
       disabled={disabled}
-      className={`relative ripple w-full text-center px-3 py-2 rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-sm transition active:scale-[0.98] ${
-        disabled ? "opacity-50 cursor-not-allowed" : ""
-      }`}
+      className={`relative ripple w-full text-center px-3 py-2 rounded-md border border-rose-200 dark:border-rose-800 bg-rose-50 dark:bg-rose-900/30 text-rose-700 dark:text-rose-200 hover:bg-rose-100 dark:hover:bg-rose-900/50 text-sm transition active:scale-[0.98] ${disabled ? "opacity-50 cursor-not-allowed" : ""
+        }`}
     >
       {children}
     </button>
@@ -2275,9 +2272,8 @@ function ToggleBtn({
   return (
     <button
       onClick={onClick}
-      className={`px-3 py-1.5 text-sm transition ${
-        active ? "bg-slate-900 text-white" : "bg-white dark:bg-slate-800"
-      }`}
+      className={`px-3 py-1.5 text-sm transition ${active ? "bg-slate-900 text-white" : "bg-white dark:bg-slate-800"
+        }`}
     >
       {txt}
     </button>
@@ -2470,22 +2466,20 @@ function DayModal({
               <div className="flex items-start justify-between gap-3">
                 <div className="flex items-center gap-2">
                   <span
-                    className={`inline-block w-2.5 h-2.5 rounded-full ${
-                      t.type === "Ingreso"
+                    className={`inline-block w-2.5 h-2.5 rounded-full ${t.type === "Ingreso"
                         ? "bg-emerald-500"
                         : t.type === "Gasto"
-                        ? "bg-rose-500"
-                        : "bg-blue-500"
-                    }`}
+                          ? "bg-rose-500"
+                          : "bg-blue-500"
+                      }`}
                   />
                   <div className="font-medium">
                     {t.type} — {t.account}
                   </div>
                 </div>
                 <div
-                  className={`text-sm font-semibold ${
-                    t.amount < 0 ? "text-rose-600" : "text-emerald-600"
-                  }`}
+                  className={`text-sm font-semibold ${t.amount < 0 ? "text-rose-600" : "text-emerald-600"
+                    }`}
                 >
                   {fmtCOP(t.amount)}
                 </div>
@@ -2580,15 +2574,6 @@ function DesignStyles() {
     }
 
     .calendar-cell { will-change: transform, opacity; }
-  `}</style>
+    `}</style>
   );
-}
-
-/* ================================= Helpers ================================= */
-
-function fmtTick(v: number) {
-  const abs = Math.abs(v);
-  if (abs >= 1_000_000) return `${(v / 1_000_000).toFixed(1)} MM`;
-  if (abs >= 1000) return `${Math.round(v / 1000)} mil`;
-  return fmtCOP(v);
 }
